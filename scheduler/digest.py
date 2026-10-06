@@ -16,8 +16,10 @@ WEEK = datetime.timedelta(days=7)
 SITE = "https://blr.today"
 PRELUDE = (
     "{{ $d := default (dict) .Subscriber.Attribs.digest }}{{ $a := default (dict) $d.always }}"
-    "{{ $n := default (dict) $d.never }}{{ $shown := 0 }}"
+    "{{ $n := default (dict) $d.never }}{{ $count := 0 }}"
 )
+# Joins a template list like the website does: "A", "A and B", "A, B and C"
+JOIN = '{{{{ if gt (len {0}) 1 }}}}{{{{ join ", " (initial {0}) }}}} and {{{{ last {0} }}}}{{{{ else }}}}{{{{ first {0} }}}}{{{{ end }}}}'
 
 
 def options(get):
@@ -61,18 +63,32 @@ def item(event):
     )
 
 
+def explain(opts, total):
+    titles = "(dict " + " ".join(f"{json.dumps(o['id'])} {json.dumps(o['title'])}" for o in opts) + ")"
+    ids = "(list " + " ".join(json.dumps(o["id"]) for o in opts) + ")"
+    pick = lambda var, out: (
+        f"{{{{ {out} := list }}}}{{{{ range $id := {ids} }}}}{{{{ if hasKey {var} $id }}}}"
+        f"{{{{ {out} = append {out} (index $t $id) }}}}{{{{ end }}}}{{{{ end }}}}"
+    )
+    return (
+        f"{{{{ $t := {titles} }}}}{pick('$a', '$al')}{pick('$n', '$nl')}"
+        f'<p style="color:#555;font-size:14px">Showing {{{{ $count }}}} of {total} events this week: the curated ones'
+        f"{{{{ if $al }}}}, plus every {JOIN.format('$al')} event{{{{ end }}}}."
+        f"{{{{ if $nl }}}} Leaving out {JOIN.format('$nl')} events.{{{{ end }}}}</p>"
+    )
+
+
 def render(events, opts, curated):
-    rows = []
-    for e in events:
-        cond = gate(matches(e, opts), e in curated)
-        if cond:
-            rows.append(f"{{{{ if {cond} }}}}{{{{ $shown = add $shown 1 }}}}{item(e)}{{{{ end }}}}")
+    conds = [(e, gate(matches(e, opts), e in curated)) for e in events]
+    conds = [(e, c) for e, c in conds if c]
     manage = SITE + "/subscribe/#{{ .Subscriber.ID }}.{{ .Subscriber.UUID }}"
     return (
         PRELUDE
+        + "".join(f"{{{{ if {c} }}}}{{{{ $count = add $count 1 }}}}{{{{ end }}}}" for _, c in conds)
+        + explain(opts, len(events))
         + '<table role="presentation" width="100%" cellspacing="0" cellpadding="0">'
-        + "".join(rows)
-        + "</table>{{ if not $shown }}<p>Nothing matched your choices this week.</p>{{ end }}"
+        + "".join(f"{{{{ if {c} }}}}{item(e)}{{{{ end }}}}" for e, c in conds)
+        + "</table>{{ if not $count }}<p>Nothing matched your choices this week.</p>{{ end }}"
         + f'<p style="color:#555;font-size:14px"><a href="{manage}">Change what you get</a> · '
         + '<a href="{{ UnsubscribeURL }}">Unsubscribe</a></p>'
     )

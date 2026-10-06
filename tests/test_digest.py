@@ -1,10 +1,14 @@
 import json
 
 from conftest import NOW, make_event
-from scheduler.digest import gate, literal, matches, render, week
+from scheduler.digest import explain, gate, literal, matches, render, week
 from scheduler.shared.calendars import Calendar
 
-OPTS = [{"id": "indiranagar", "tags": ["INDIRANAGAR"]}, {"id": "music", "types": ["MusicEvent"]}, {"id": "pricey", "tags": ["PRICEY"]}]
+OPTS = [
+    {"id": "indiranagar", "title": "Indiranagar", "tags": ["INDIRANAGAR"]},
+    {"id": "music", "title": "Music", "types": ["MusicEvent"]},
+    {"id": "pricey", "title": "Pricey", "tags": ["PRICEY"]},
+]
 
 
 def test_events_match_choices_by_tag_or_type():
@@ -34,3 +38,10 @@ def test_uncurated_events_without_choices_are_left_out():
     body = render([make_event("https://x/c", 3, ["CURATED"]), make_event("https://x/u", 4, ["HIGHAPE"])], OPTS, curated)
     assert "https://x/c" in body and "https://x/u" not in body
     assert "{{ UnsubscribeURL }}" in body and "{{ .Subscriber.UUID }}" in body
+
+
+def test_the_email_explains_the_choices_like_the_page():
+    text = explain(OPTS, 9)
+    assert '(dict "indiranagar" "Indiranagar" "music" "Music" "pricey" "Pricey")' in text
+    assert "Showing {{ $count }} of 9 events this week: the curated ones" in text
+    assert "plus every" in text and "Leaving out" in text
