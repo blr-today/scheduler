@@ -45,6 +45,8 @@ def event_fields(event):
 def compress(data):
     """Downscale and re-encode as JPEG so instances don't store multi-MB posters"""
     image = Image.open(io.BytesIO(data))
+    # JPEGs decode straight at a reduced scale, so a huge poster never sits fully in memory
+    image.draft("RGB", (MAX_SIDE, MAX_SIDE))
     image.thumbnail((MAX_SIDE, MAX_SIDE))
     if image.mode != "RGB":
         background = Image.new("RGB", image.size, "white")
