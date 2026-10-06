@@ -6,7 +6,7 @@ import pytest
 
 from conftest import NOW, make_event
 from scheduler.shared import database
-from scheduler.shared.calendars import Calendar, load_calendar
+from scheduler.shared.calendars import Calendar, account_calendar, load_calendar
 from scheduler.shared.events import price, upcoming
 from scheduler.shared.ledger import Ledger, LedgerError, adopt, locked, reconcile
 from scheduler.shared.pacing import due, gap, in_window
@@ -18,6 +18,12 @@ def test_calendar_needs_a_tag_and_no_excluded_tag():
     assert {"keywords": ["CURATED"]} in cal
     assert {"keywords": ["CURATED", "LOW-QUALITY"]} not in cal
     assert {"keywords": ["HIGHAPE"]} not in cal
+
+
+def test_account_calendar_from_tags_and_types():
+    cal = account_calendar({"tags": ["FREE"], "types": ["MusicEvent"], "exclude": ["PRICEY"]}, None)
+    assert {"keywords": ["FREE"]} in cal and {"@type": "MusicEvent", "keywords": []} in cal
+    assert {"@type": "MusicEvent", "keywords": ["PRICEY"]} not in cal and {"keywords": ["BUDGET"]} not in cal
 
 
 def test_calendar_falls_back_to_default_excludes():

@@ -3,7 +3,7 @@ import json
 import os
 from pathlib import Path
 
-from ..shared.calendars import load_calendar
+from ..shared.calendars import account_calendar, load_calendar
 from ..shared.events import iso, parse_time
 from ..shared.ledger import Ledger, adopt
 from ..shared.publish import HISTORY, Reposter, publish
@@ -103,7 +103,7 @@ def run(config, events, state, now, get, dry_run=False, adopting=False):
     if adopting:
         return adopt(ledger, published(feed, now, full=True), NAME)
     excluded = [load_calendar(name, get) for name in config["feed"]["exclude"]]
-    reposters = [BlueskyReposter(client(r["handle"]), load_calendar(r["calendar"], get), now) for r in config["reposters"]]
+    reposters = [BlueskyReposter(client(r["handle"]), account_calendar(r, get), now) for r in config["reposters"]]
     caller = None
     if handle := (config.get("last_call") or {}).get("handle"):
         if dry_run or handle in passwords:
