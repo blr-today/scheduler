@@ -222,3 +222,50 @@ def test_report_shows_plan_recent_posts_and_skips(tmp_path):
     assert [p["url"] for p in built["planned"]] == ["b"] and built["planned"][0]["accounts"] == []
     report.write(tmp_path, "bluesky", built)
     assert (tmp_path / "public" / "bluesky.json").exists()
+
+
+class FakeHTTP:
+    """Answers XRPC calls like a PDS whose access tokens expire after one use"""
+
+    def __init__(self):
+        self.headers, self.logins, self.refreshes, self.valid = {}, 0, 0, set()
+
+    def response(self, status, body):
+        import json as _json
+        r = type("R", (), {})()
+        r.status_code, r.ok, r.headers, r.text = status, status < 400, {}, _json.dumps(body)
+        r.json = lambda: body
+        return r
+
+    def get(self, url, params=None, timeout=None):
+        return self.response(200, {"did": "did:plc:x"})
+
+    def post(self, url, json=None, data=None, headers=None, timeout=None):
+        if url.endswith("createSession"):
+            self.logins += 1
+            return self.issue(f"a{self.logins}")
+        if url.endswith("refreshSession"):
+            self.refreshes += 1
+            return self.issue(f"r{self.refreshes}")
+        token = self.headers.get("Authorization", "").removeprefix("Bearer ")
+        if token not in self.valid:
+            return self.response(400, {"error": "ExpiredToken"})
+        self.valid.discard(token)
+        return self.response(200, {"uri": "at://did:plc:x/p/1", "cid": "c"})
+
+    def issue(self, token):
+        self.valid.add(token)
+        return self.response(200, {"accessJwt": token, "refreshJwt": "refresh", "did": "did:plc:x"})
+
+
+def test_sessions_are_cached_and_refreshed_instead_of_logging_in(tmp_path, monkeypatch):
+    from scheduler.bluesky import client as module
+    http = FakeHTTP()
+    monkeypatch.setattr(module.requests, "Session", lambda: http)
+    first = module.Client("https://pds", "events.blr.today", "pw", tmp_path)
+    assert http.logins == 0
+    first.create(POST, {})
+    second = module.Client("https://pds", "events.blr.today", "pw", tmp_path)
+    second.create(POST, {})
+    assert (http.logins, http.refreshes) == (1, 1)
+    assert oct((tmp_path / "events.blr.today.json").stat().st_mode)[-3:] == "600"

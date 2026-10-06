@@ -103,7 +103,7 @@ def run(config, events, state, now, get, dry_run=False, adopting=False):
     cls = DryClient if dry_run else Client
 
     def client(handle):
-        return cls(config["pds"], handle, None if dry_run else passwords[handle])
+        return cls(config["pds"], handle, None if dry_run else passwords[handle], Path(state, "sessions"))
 
     ledger = Ledger(ledger_path(state), readonly=dry_run)
     feed = client(config["feed"]["handle"])
