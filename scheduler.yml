@@ -14,3 +14,5 @@ bluesky:
       calendar: indiranagar
     - handle: curated.blr.today
       calendar: curated
+    - handle: cbd.blr.today
+      calendar: cbd

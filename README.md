@@ -22,8 +22,8 @@ Fediverse accounts are all planned, on `fedi.blr.today` once the server is up.
 | [events.blr.today](https://bsky.app/profile/events.blr.today) (live) | [@events](https://fedi.blr.today/events) | everything outside `cal/unwanted` | 291 |
 | [curated.blr.today](https://bsky.app/profile/curated.blr.today) (live) | [@curated](https://fedi.blr.today/curated) | `cal/curated` (the homepage) | 154 |
 | [indiranagar.blr.today](https://bsky.app/profile/indiranagar.blr.today) (live) | [@indiranagar](https://fedi.blr.today/indiranagar) | `cal/indiranagar` | 84 |
-| [lastcall.blr.today](https://bsky.app/profile/lastcall.blr.today) (to create) | [@lastcall](https://fedi.blr.today/lastcall) | Last Call replies | 5 |
-| [cbd.blr.today](https://bsky.app/profile/cbd.blr.today) (next) | [@cbd](https://fedi.blr.today/cbd) | `cal/cbd` | 68 |
+| [lastcall.blr.today](https://bsky.app/profile/lastcall.blr.today) (live) | [@lastcall](https://fedi.blr.today/lastcall) | Last Call replies | 5 |
+| [cbd.blr.today](https://bsky.app/profile/cbd.blr.today) (live) | [@cbd](https://fedi.blr.today/cbd) | `cal/cbd` | 68 |
 | [free.blr.today](https://bsky.app/profile/free.blr.today) (next) | [@free](https://fedi.blr.today/free) | tags `FREE` | 51 |
 | [whitefield.blr.today](https://bsky.app/profile/whitefield.blr.today) (next) | [@whitefield](https://fedi.blr.today/whitefield) | `cal/whitefield` | 41 |
 | [fitness.blr.today](https://bsky.app/profile/fitness.blr.today) (next) | [@fitness](https://fedi.blr.today/fitness) | `cal/fitness` | 28 |
