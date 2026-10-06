@@ -16,3 +16,5 @@ bluesky:
       calendar: curated
     - handle: cbd.blr.today
       calendar: cbd
+    - handle: free.blr.today
+      tags: [FREE]
