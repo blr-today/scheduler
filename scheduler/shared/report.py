@@ -4,23 +4,21 @@ import os
 from pathlib import Path
 
 from .events import LEAD, parse_time
-from .pacing import RUN, allowance, in_window, spacing
+from .pacing import RUN, in_window, slots, spacing
 
 HORIZON = datetime.timedelta(days=7)
 RECENT = datetime.timedelta(hours=48)
 
 
-def forecast(pending, last, now, horizon=HORIZON):
+def forecast(pending, next_slot, now, horizon=HORIZON):
     """When each queued event would go out if nothing new arrived, replaying the scheduler's runs"""
     queue, plan, missed, t = list(pending), [], [], now
     while queue and t < now + horizon:
         if in_window(t):
             missed += [e for e in queue if e["_start"] - LEAD < t]
             queue = [e for e in queue if e["_start"] - LEAD >= t]
-            for _ in range(allowance(last, spacing([e["_start"] - LEAD for e in queue], t), t)):
-                if queue:
-                    plan.append((t, queue.pop(0)))
-                    last = t
+            due, next_slot = slots(next_slot, spacing([e["_start"] - LEAD for e in queue], t), t, len(queue))
+            plan += [(t, queue.pop(0)) for _ in due]
         t += RUN
     return plan, missed
 
@@ -37,7 +35,7 @@ def event_row(event, accounts):
 
 def build(platform, outcome, ledger, accounts, now, post_link, dry_run=False):
     """Everything the /_debug/social/ page shows for one platform"""
-    plan, missed = forecast(outcome.pending, ledger.last_posted(), now)
+    plan, missed = forecast(outcome.pending, ledger.next_slot, now)
     recent = []
     for url, entry in ledger.posted().items():
         posted = parse_time(entry["posted"])

@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from .corrections import changes, facts
 from .events import IST, LEAD, cancelled, parse_time, sold_out, tracked, upcoming
 from .ledger import reconcile
-from .pacing import allowance, in_window, spacing
+from .pacing import MAX_PER_RUN, in_window, slots, spacing
 from .text import last_call
 
 HISTORY = datetime.timedelta(days=30)
@@ -142,16 +142,20 @@ def publish(feed, reposters, events, excluded, now, ledger, name, order=None, ca
         pending = sorted((e for e in pending if e["url"] in order), key=lambda e: order[e["url"]])
     open_now = in_window(now)
     gap = spacing([e["_start"] - LEAD for e in pending], now) if order is None else datetime.timedelta(0)
-    quota = allowance(ledger.last_posted(), gap, now) if open_now else 0
-    print(f"{name}: {len(window)} tracked, {len(ledger.posted())} posted, {len(pending)} pending, gap {gap}, posting {quota} now")
+    if order is not None:
+        due, next_slot = [now] * min(len(pending), MAX_PER_RUN), ledger.next_slot
+    else:
+        due, next_slot = slots(ledger.next_slot, gap, now, len(pending) if open_now else 0)
+    print(f"{name}: {len(window)} tracked, {len(ledger.posted())} posted, {len(pending)} pending, gap {gap}, posting {len(due)} now")
     posted = 0
-    while pending and posted < quota:
+    while pending and posted < len(due):
         event = pending.pop(0)
         ledger.begin(event["url"], facts(event), now)
         # A failure leaves the entry pending, and the next run settles it against the platform
         ref = feed.post(event, now)
         ledger.commit(event["url"], ref, now)
         posted += 1
+        ledger.next_slot = due[posted] if posted < len(due) else next_slot
         print(f"{name}: posted {event.get('name')} ({event['url']})")
         share(reposters, ledger.get(event["url"]), event)
         live.append(event)

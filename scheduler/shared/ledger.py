@@ -32,6 +32,7 @@ class Ledger:
         # When each unposted event first became postable, and why some never were
         self.seen = data.get("seen", {})
         self.skipped = data.get("skipped", {})
+        self.next_slot = parse_time(data.get("next_slot"))
 
     def __contains__(self, url):
         return url in self.entries
@@ -93,7 +94,8 @@ class Ledger:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.path.with_suffix(".tmp")
         with open(tmp, "w") as f:
-            state = {"version": 1, "entries": self.entries, "attempts": self.attempts, "seen": self.seen, "skipped": self.skipped}
+            state = {"version": 1, "entries": self.entries, "attempts": self.attempts, "seen": self.seen, "skipped": self.skipped,
+                     "next_slot": self.next_slot.isoformat() if self.next_slot else None}
             json.dump(state, f, indent=1, sort_keys=True)
             f.flush()
             os.fsync(f.fileno())

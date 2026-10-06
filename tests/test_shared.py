@@ -9,7 +9,7 @@ from scheduler.shared import database
 from scheduler.shared.calendars import Calendar, account_calendar, load_calendar
 from scheduler.shared.events import price, upcoming
 from scheduler.shared.ledger import Ledger, LedgerError, adopt, locked, reconcile
-from scheduler.shared.pacing import allowance, in_window, posting_time, spacing
+from scheduler.shared.pacing import in_window, posting_time, slots, spacing
 from scheduler.shared.text import clip, details, fit, last_call, tickets
 
 
@@ -61,12 +61,20 @@ def test_spacing_gets_every_event_out_by_its_deadline():
     assert spacing([], NOW) is None
 
 
-def test_allowance_bursts_when_the_gap_is_under_a_run():
+def test_slots_keep_the_long_run_rate_at_one_per_gap():
     minute = datetime.timedelta(minutes=1)
-    assert allowance(None, 60 * minute, NOW) == 1
-    assert allowance(NOW - 30 * minute, 60 * minute, NOW) == 0
-    assert allowance(NOW - 30 * minute, minute, NOW) == 5
-    assert allowance(NOW, datetime.timedelta(0), NOW) == 20
+    assert slots(None, 60 * minute, NOW, 5) == ([NOW], NOW + 60 * minute)
+    assert slots(NOW + 10 * minute, 60 * minute, NOW, 5) == ([], NOW + 10 * minute)
+    # A gap just under the 5-minute run still posts every run, and catches up the remainder
+    gap, next_slot, posted = datetime.timedelta(minutes=4.4), None, 0
+    for run in range(12):
+        due, next_slot = slots(next_slot, gap, NOW + 5 * run * minute, 100)
+        posted += len(due)
+    # Runs at 0..55 minutes cover slots 0, 4.4 … 52.8, where pacing by the last post managed 6
+    assert posted == 13
+    # Quiet hours don't pile up: a slot from yesterday allows at most one run's worth
+    assert len(slots(NOW - datetime.timedelta(hours=15), 2 * minute, NOW, 100)[0]) == 3
+    assert len(slots(None, datetime.timedelta(0), NOW, 100)[0]) == 20
 
 
 def test_text_helpers():

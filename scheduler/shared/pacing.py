@@ -31,10 +31,18 @@ def spacing(deadlines, now):
     return min(gaps, default=None)
 
 
-def allowance(last, gap, now):
-    """How many posts this run may make: none until the gap has passed, several when it is under a run"""
-    if gap is None or (last and last + gap > now):
-        return 0
+def slots(next_slot, gap, now, available):
+    """Post times due by now, each a gap after the last, so the long-run rate is exactly 1/gap
+
+    After quiet hours the next slot is pulled up to now, so nothing piles up overnight.
+    """
+    if gap is None or not available:
+        return [], next_slot
     if gap <= datetime.timedelta(0):
-        return MAX_PER_RUN
-    return min(MAX_PER_RUN, max(1, int(RUN / gap)))
+        # Out of posting time before a deadline: post as many as a run allows
+        return [now] * min(available, MAX_PER_RUN), now
+    slot, due = max(next_slot or now, now - RUN), []
+    while slot <= now and len(due) < min(available, MAX_PER_RUN):
+        due.append(slot)
+        slot += gap
+    return due, slot
