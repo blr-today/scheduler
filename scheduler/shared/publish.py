@@ -112,6 +112,7 @@ def correct(feed, ledger, followed, now):
             continue
         feed.correct(entry["ref"], event, lines)
         entry["facts"], corrected = facts(event), corrected + 1
+        entry["corrections"] = entry.get("corrections", 0) + 1
         ledger.save()
         print(f"Corrected {event.get('name')}: {'; '.join(lines)}")
 

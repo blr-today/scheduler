@@ -1,13 +1,15 @@
 import datetime
 import json
 import os
+from collections import Counter
 from pathlib import Path
 
-from .events import LEAD, parse_time
+from .events import IST, LEAD, parse_time
 from .pacing import RUN, in_window, slots, spacing
 
 HORIZON = datetime.timedelta(days=7)
 RECENT = datetime.timedelta(hours=48)
+DAILY = datetime.timedelta(days=30)
 
 
 def forecast(pending, next_slot, now, horizon=HORIZON):
@@ -33,6 +35,23 @@ def event_row(event, accounts):
     }
 
 
+def stats(ledger, now):
+    """Running totals from the ledger, for the website's /follow/ page and /metrics"""
+    entries = ledger.posted().values()
+    times = sorted(t for t in (parse_time(e["posted"]) for e in entries) if t)
+    days = Counter(t.astimezone(IST).date().isoformat() for t in times if now - t <= DAILY)
+    return {
+        "posted": len(times),
+        "since": times[0].isoformat() if times else None,
+        "last_7_days": sum(1 for t in times if now - t <= datetime.timedelta(days=7)),
+        "by_day": dict(sorted(days.items())),
+        "reposts": dict(Counter(name for e in entries for name in e.get("reposted", [])).most_common()),
+        "last_calls": sum(1 for e in entries if e.get("last_call")),
+        "corrections": sum(e.get("corrections", 0) for e in entries),
+        "skipped": dict(Counter(s["reason"] for s in ledger.skipped.values()).most_common()),
+    }
+
+
 def build(platform, outcome, ledger, accounts, now, post_link, dry_run=False):
     """Everything the /_debug/social/ page shows for one platform"""
     plan, missed = forecast(outcome.pending, ledger.next_slot, now)
@@ -51,6 +70,7 @@ def build(platform, outcome, ledger, accounts, now, post_link, dry_run=False):
         "dry_run": dry_run,
         "gap_minutes": round(outcome.gap.total_seconds() / 60, 1) if outcome.gap is not None else None,
         "pending": len(outcome.pending),
+        "stats": stats(ledger, now),
         "planned": [{"at": t.isoformat(), **event_row(e, accounts)} for t, e in plan],
         "would_miss": [event_row(e, accounts) for e in missed],
         "recent": sorted(recent, key=lambda r: r["at"], reverse=True),

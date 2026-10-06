@@ -205,3 +205,18 @@ def test_closing_time_can_be_extended_for_one_day(monkeypatch):
     assert in_window(NOW.replace(hour=19, minute=30)) and not in_window(NOW.replace(hour=20))
     assert not in_window(NOW.replace(hour=19, minute=30) + datetime.timedelta(days=1))
     assert posting_time(NOW, NOW + datetime.timedelta(days=1)).total_seconds() / 3600 == 10
+
+
+def test_stats_total_the_ledger(tmp_path):
+    from scheduler.shared.report import stats
+    ledger = Ledger(tmp_path / "bluesky.json")
+    ledger.record("a", {}, None, NOW - datetime.timedelta(days=1))
+    ledger.record("b", {}, None, NOW - datetime.timedelta(days=40))
+    ledger.get("a").update(reposted=["curated", "free"], last_call=True, corrections=2)
+    ledger.get("b")["reposted"] = ["curated"]
+    ledger.skip("c", make_event("https://x/c", 50), "sold out", NOW)
+    assert stats(ledger, NOW) == {
+        "posted": 2, "since": (NOW - datetime.timedelta(days=40)).isoformat(), "last_7_days": 1,
+        "by_day": {"2026-10-05": 1}, "reposts": {"curated": 2, "free": 1}, "last_calls": 1, "corrections": 2,
+        "skipped": {"sold out": 1},
+    }
