@@ -1,5 +1,6 @@
 import datetime
 from collections import defaultdict
+from dataclasses import dataclass, field
 
 from .corrections import changes, facts
 from .events import IST, LEAD, cancelled, parse_time, sold_out, tracked, upcoming
@@ -59,6 +60,30 @@ def announce_last_calls(caller, ledger, live, now):
         print(f"Last call: {event.get('name')} ({last_call(event)})")
 
 
+@dataclass
+class Outcome:
+    posted: int = 0
+    gap: datetime.timedelta | None = None
+    pending: list = field(default_factory=list)
+    names: dict = field(default_factory=dict)
+
+
+def track_skips(ledger, candidates, window, now):
+    """Note events that sold out before their turn, or whose posting window closed unposted"""
+    for event in candidates:
+        if sold_out(event):
+            ledger.skip(event["url"], event, "sold out before posting", now)
+        else:
+            ledger.seen.setdefault(event["url"], now.isoformat())
+    postable, by_url = {e["url"] for e in candidates}, {e["url"]: e for e in window}
+    for url in [u for u in ledger.seen if u not in postable]:
+        if url in ledger or url not in by_url:
+            ledger.seen.pop(url)
+        else:
+            ledger.skip(url, by_url[url], "posting window closed", now)
+    ledger.forget_before(now - HISTORY)
+
+
 def follow(ledger, window, now):
     """The occurrence each posted URL is about: the one at its posted start time, else its next one"""
     sessions = defaultdict(list)
@@ -108,7 +133,9 @@ def publish(feed, reposters, events, excluded, now, ledger, name, order=None, ca
     correct(feed, ledger, followed, now)
     live = [e for e in followed.values() if not cancelled(e)]
     # Sold-out events still get corrections and reposts, but are never posted fresh
-    pending = [e for e in upcoming(window, now) if e["url"] not in ledger and not sold_out(e) and not ledger.gave_up(e["url"])]
+    candidates = [e for e in upcoming(window, now) if e["url"] not in ledger and not ledger.gave_up(e["url"])]
+    track_skips(ledger, candidates, window, now)
+    pending = [e for e in candidates if not sold_out(e)]
     # Soonest posting deadline first by day, and within a day priority calendars first
     pending.sort(key=lambda e: ((e["_start"] - LEAD).astimezone(IST).date(), not any(e in c for c in priority), e["_start"]))
     if order is not None:
@@ -135,4 +162,4 @@ def publish(feed, reposters, events, excluded, now, ledger, name, order=None, ca
     if caller and open_now:
         announce_last_calls(caller, ledger, live, now)
     ledger.save()
-    return posted
+    return Outcome(posted, gap, pending, {e["url"]: e.get("name") for e in window})

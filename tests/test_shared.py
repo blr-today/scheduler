@@ -174,3 +174,14 @@ def test_old_database_refuses_to_run(tmp_path, monkeypatch):
     monkeypatch.setattr(database.requests, "get", lambda url, headers, timeout: old)
     with pytest.raises(database.StaleDatabase):
         database.fetch("https://x/events.db", tmp_path / "events.db", NOW)
+
+
+def test_forecast_replays_the_spacing_and_flags_misses():
+    from scheduler.shared.report import forecast
+    queue = [make_event(f"e{i}", 72 + i) for i in range(3)]
+    plan, missed = forecast(queue, None, NOW)
+    times = [t for t, _ in plan]
+    assert [e["url"] for _, e in plan] == ["e0", "e1", "e2"] and missed == []
+    assert times[0] == NOW and times == sorted(times) and times[-1] < NOW + datetime.timedelta(days=1)
+    late = make_event("late", 47.9)
+    assert forecast([late], None, NOW.replace(hour=11))[1] == [late]

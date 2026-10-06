@@ -29,6 +29,9 @@ class Ledger:
             raise LedgerError(f"{self.path} has an unknown format")
         self.entries = data.get("entries", {})
         self.attempts = data.get("attempts", {})
+        # When each unposted event first became postable, and why some never were
+        self.seen = data.get("seen", {})
+        self.skipped = data.get("skipped", {})
 
     def __contains__(self, url):
         return url in self.entries
@@ -63,6 +66,24 @@ class Ledger:
         self.attempts[url] = self.attempts.get(url, 0) + 1
         self.save()
 
+    def skip(self, url, event, reason, now):
+        if url not in self.skipped:
+            self.skipped[url] = {
+                "reason": reason,
+                "name": event.get("name"),
+                "starts": event["_start"].isoformat(),
+                "postable_since": self.seen.get(url),
+                "noticed": now.isoformat(),
+            }
+            print(f"skipped, {reason}: {event.get('name')} ({url})")
+        self.seen.pop(url, None)
+
+    def forget_before(self, cutoff):
+        for url in [u for u, at in self.seen.items() if parse_time(at) < cutoff]:
+            del self.seen[url]
+        for url in [u for u, s in self.skipped.items() if parse_time(s["noticed"]) < cutoff]:
+            del self.skipped[url]
+
     def last_posted(self):
         return max((parse_time(e["posted"]) for e in self.posted().values()), default=None)
 
@@ -72,7 +93,8 @@ class Ledger:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.path.with_suffix(".tmp")
         with open(tmp, "w") as f:
-            json.dump({"version": 1, "entries": self.entries, "attempts": self.attempts}, f, indent=1, sort_keys=True)
+            state = {"version": 1, "entries": self.entries, "attempts": self.attempts, "seen": self.seen, "skipped": self.skipped}
+            json.dump(state, f, indent=1, sort_keys=True)
             f.flush()
             os.fsync(f.fileno())
         os.replace(tmp, self.path)

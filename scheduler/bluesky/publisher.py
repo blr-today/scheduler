@@ -6,6 +6,7 @@ from pathlib import Path
 from ..shared.calendars import account_calendar, load_calendar
 from ..shared.events import iso, parse_time
 from ..shared.ledger import Ledger, adopt
+from ..shared import report
 from ..shared.publish import HISTORY, Reposter, publish
 from ..shared.text import fit
 from .client import Client, DryClient
@@ -87,6 +88,12 @@ class LastCaller:
         self.client.create(POST, last_call_record(ref, event))
 
 
+def post_link(ref):
+    """bsky.app web link for an at:// post URI"""
+    did, _, rkey = ref["uri"].removeprefix("at://").partition("/app.bsky.feed.post/")
+    return f"https://bsky.app/profile/{did}/post/{rkey}"
+
+
 def ledger_path(state):
     return Path(state, "ledger", f"{NAME}.json")
 
@@ -104,11 +111,15 @@ def run(config, events, state, now, get, dry_run=False, adopting=False):
         return adopt(ledger, published(feed, now, full=True), NAME)
     excluded = [load_calendar(name, get) for name in config["feed"]["exclude"]]
     priority = [load_calendar(name, get) for name in config["feed"].get("priority", [])]
-    reposters = [BlueskyReposter(client(r["handle"]), account_calendar(r, get), now) for r in config["reposters"]]
+    accounts = {r["handle"]: account_calendar(r, get) for r in config["reposters"]}
+    reposters = [BlueskyReposter(client(handle), calendar, now) for handle, calendar in accounts.items()]
     caller = None
     if handle := (config.get("last_call") or {}).get("handle"):
         if dry_run or handle in passwords:
             caller = LastCaller(client(handle))
         else:
             print(f"{NAME}: no app password for {handle}, skipping last calls")
-    return publish(Feed(feed), reposters, events, excluded, now, ledger, NAME, caller=caller, priority=priority)
+    outcome = publish(Feed(feed), reposters, events, excluded, now, ledger, NAME, caller=caller, priority=priority)
+    # The report is not a platform write, so dry runs publish it too
+    report.write(state, NAME, report.build(NAME, outcome, ledger, accounts, now, post_link, dry_run))
+    return outcome

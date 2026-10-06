@@ -50,12 +50,12 @@ def test_first_run_posts_and_reposts(tmp_path):
     feed, curated, hood = FakeClient("events"), FakeClient("curated"), FakeClient("indiranagar")
     reposters = [BlueskyReposter(curated, Calendar(["CURATED"]), NOW), BlueskyReposter(hood, Calendar(["INDIRANAGAR"]), NOW)]
     events = [make_event("junk", 50, ["LOW-QUALITY"]), make_event("b", 53, ["INDIRANAGAR", "CURATED"]), make_event("c", 54, ["CURATED"]), make_event("soon", 5, ["CURATED"])]
-    assert run(feed, events, NOW, Ledger(tmp_path / "l.json"), reposters, [Calendar(["LOW-QUALITY"])]) == 1
+    assert run(feed, events, NOW, Ledger(tmp_path / "l.json"), reposters, [Calendar(["LOW-QUALITY"])]).posted == 1
     assert [r["embed"]["external"]["uri"] for r in posts(feed)] == ["b"]
     assert [r["name"] for c, _, r in feed.puts if c == EVENT] == ["SOON", "B", "C"]
     assert len(curated.created) == len(hood.created) == 1
     # The next post waits for its slot, so a run five minutes later posts nothing
-    assert run(feed, events, NOW + datetime.timedelta(minutes=5), Ledger(tmp_path / "l.json"), reposters) == 0
+    assert run(feed, events, NOW + datetime.timedelta(minutes=5), Ledger(tmp_path / "l.json"), reposters).posted == 0
 
 
 def test_existing_account_without_ledger_refuses_to_post(tmp_path):
@@ -196,3 +196,29 @@ def test_priority_calendar_goes_first_within_a_deadline_day(tmp_path):
     publish(Feed(feed), [], events, [], NOW, Ledger(tmp_path / "l.json"), "bluesky", priority=[Calendar(["CURATED"])])
     # A later deadline day never jumps ahead, even for a priority calendar
     assert [r["embed"]["external"]["uri"] for r in posts(feed)] == ["picked"]
+
+
+def test_sold_out_and_expired_events_are_tracked_as_skipped(tmp_path):
+    path, feed = tmp_path / "l.json", FakeClient("events")
+    hot, quiet = make_event("hot", 50), make_event("quiet", 49)
+    run(feed, [hot, quiet], NOW.replace(hour=8), Ledger(path))
+    gone = dict(hot, offers=[{"price": "500", "availability": "https://schema.org/SoldOut"}])
+    # quiet's posting window closes at 11:00 while the posting hours haven't opened for it
+    run(feed, [gone, quiet], NOW.replace(hour=9, minute=55) + datetime.timedelta(hours=1, minutes=10), Ledger(path))
+    skipped = Ledger(path).skipped
+    assert skipped["hot"]["reason"] == "sold out before posting"
+    assert skipped["hot"]["postable_since"] == NOW.replace(hour=8).isoformat()
+    assert skipped["quiet"]["reason"] == "posting window closed"
+
+
+def test_report_shows_plan_recent_posts_and_skips(tmp_path):
+    from scheduler.bluesky.publisher import post_link
+    from scheduler.shared import report
+    path, feed = tmp_path / "l.json", FakeClient("events")
+    events = [make_event("a", 53, ["CURATED"]), make_event("b", 60)]
+    outcome = run(feed, events, NOW, Ledger(path))
+    built = report.build("bluesky", outcome, Ledger(path), {"curated.blr.today": Calendar(["CURATED"])}, NOW, post_link)
+    assert [r["url"] for r in built["recent"]] == ["a"] and built["recent"][0]["post"].startswith("https://bsky.app/profile/did:plc:events/post/")
+    assert [p["url"] for p in built["planned"]] == ["b"] and built["planned"][0]["accounts"] == []
+    report.write(tmp_path, "bluesky", built)
+    assert (tmp_path / "public" / "bluesky.json").exists()
