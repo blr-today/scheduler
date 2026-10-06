@@ -43,5 +43,5 @@ def test_uncurated_events_without_choices_are_left_out():
 def test_the_email_explains_the_choices_like_the_page():
     text = explain(OPTS, 9)
     assert '(dict "indiranagar" "Indiranagar" "music" "Music" "pricey" "Pricey")' in text
-    assert "Here are {{ $count }} of this week's 9 events: our picks" in text
+    assert "Here are {{ $count }} of this week's 9 events: the Curated events" in text
     assert "plus all the" in text and "We left out anything" in text and " or {{ last $nl }}" in text
