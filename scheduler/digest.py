@@ -74,7 +74,7 @@ def explain(opts, total):
         f"{{{{ $t := {titles} }}}}{pick('$a', '$al')}{pick('$n', '$nl')}"
         f'<p style="color:#555;font-size:14px">Here are {{{{ $count }}}} of this week\'s {total} events: the Curated events'
         f"{{{{ if $al }}}}, plus all the {JOIN.format('$al', 'and')} events{{{{ end }}}}."
-        f"{{{{ if $nl }}}} We left out anything {JOIN.format('$nl', 'or')}.{{{{ end }}}}</p>"
+        f"{{{{ if $nl }}}} Skipping anything {JOIN.format('$nl', 'or')}.{{{{ end }}}}</p>"
     )
 
 
