@@ -269,3 +269,16 @@ def test_sessions_are_cached_and_refreshed_instead_of_logging_in(tmp_path, monke
     second.create(POST, {})
     assert (http.logins, http.refreshes) == (1, 1)
     assert oct((tmp_path / "events.blr.today.json").stat().st_mode)[-3:] == "600"
+
+
+def test_neighbourhood_and_type_go_in_the_tags_field_only(tmp_path):
+    from scheduler.bluesky.records import tags
+    city = ["Bengaluru", "Bangalore"]
+    assert tags(make_event("a", 53, ["INDIRANAGAR", "FREE"], **{"@type": "SportsEvent"})) == city + ["Indiranagar", "Sports"]
+    assert tags(make_event("b", 53, ["CBD", "HSR"], **{"@type": "ChildrensEvent"})) == city + ["HSRLayout", "CentralBengaluru", "Kids"]
+    assert tags(make_event("c", 53, [], **{"@type": "Event", "additionalType": "TheaterEvent"})) == city + ["Theater"]
+    assert tags(make_event("d", 53)) == city
+    feed = FakeClient("events")
+    run(feed, [make_event("e", 53, ["KORAMANGALA"], **{"@type": "MusicEvent"})], NOW, Ledger(tmp_path / "l.json"))
+    post = posts(feed)[0]
+    assert post["tags"] == ["Bengaluru", "Bangalore", "Koramangala", "Music"] and "#" not in post["text"]
