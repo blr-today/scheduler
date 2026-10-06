@@ -198,3 +198,10 @@ def test_forecast_replays_the_spacing_and_flags_misses():
 def test_age_ranges_stay_out_of_post_text():
     text = fit(details(make_event("a", 53, typicalAgeRange="12+", audience={"audienceType": "Families"})), 300)
     assert "Ages" not in text and "🧒 For Families" in text
+
+
+def test_closing_time_can_be_extended_for_one_day(monkeypatch):
+    monkeypatch.setenv("SCHEDULER_DAY_END", "2026-10-06T20:00+05:30")
+    assert in_window(NOW.replace(hour=19, minute=30)) and not in_window(NOW.replace(hour=20))
+    assert not in_window(NOW.replace(hour=19, minute=30) + datetime.timedelta(days=1))
+    assert posting_time(NOW, NOW + datetime.timedelta(days=1)).total_seconds() / 3600 == 10

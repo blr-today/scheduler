@@ -1,6 +1,7 @@
 import datetime
+import os
 
-from .events import IST
+from .events import IST, parse_time
 
 DAY_START = datetime.time(10)
 DAY_END = datetime.time(19)
@@ -8,15 +9,24 @@ RUN = datetime.timedelta(minutes=5)
 MAX_PER_RUN = 20
 
 
+def day_end(day):
+    """19:00 IST, unless SCHEDULER_DAY_END (an IST datetime) extends that one day"""
+    override = parse_time(os.environ.get("SCHEDULER_DAY_END"))
+    if override and override.astimezone(IST).date() == day:
+        return override.astimezone(IST).time()
+    return DAY_END
+
+
 def in_window(now):
-    return DAY_START <= now.astimezone(IST).time() < DAY_END
+    local = now.astimezone(IST)
+    return DAY_START <= local.time() < day_end(local.date())
 
 
 def posting_time(start, end):
     """How much of the daily 10:00-19:00 IST posting hours falls between start and end"""
     total, day = datetime.timedelta(0), start.astimezone(IST).date()
     while (opens := datetime.datetime.combine(day, DAY_START, IST)) < end:
-        closes = datetime.datetime.combine(day, DAY_END, IST)
+        closes = datetime.datetime.combine(day, day_end(day), IST)
         total += max(min(closes, end) - max(opens, start), datetime.timedelta(0))
         day += datetime.timedelta(days=1)
     return total
