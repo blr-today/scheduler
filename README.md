@@ -52,9 +52,10 @@ Fediverse accounts are all planned, on `fedi.blr.today` once the server is up.
    old one after an SQLite integrity check, and data older than 48 hours stops the run.
 2. Checks the ledger against the account's recent posts (see below).
 3. Updates calendar records and posts corrections.
-4. Between 10:00 and 19:00 IST, posts the next event that starts 2–7 days from now, soonest
-   first, once it is due. Posts are spaced as `(time left until 19:00) / (pending + 1)`, at
-   least 7.5 minutes apart, and an event jumps the queue a day before it leaves the window.
+4. Between 10:00 and 19:00 IST, posts events that start 2–7 days from now. The queue goes by
+   posting deadline (start minus 2 days) day, and `priority` calendars go first within a day.
+   The gap between posts is the widest even gap that still gets every queued event out by its
+   deadline, so busy weeks post more often. Under 5 minutes, a run posts several (max 20).
    Corrections, reposts and Last Calls keep following every posted event until it starts.
 5. Catches up on missing reposts and Last Calls.
 
@@ -83,8 +84,7 @@ uv run --frozen python -m scheduler --state state --dry-run run
 uv run --frozen python -m scheduler --state state adopt bluesky
 ```
 
-`--dry-run` reads the real accounts and prints every write without making it. `--website`
-reads calendar definitions from a local website checkout instead of GitHub.
+`--dry-run` prints every write instead of making it; `--website` reads a local website checkout.
 
 ## Layout
 

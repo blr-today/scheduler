@@ -6,6 +6,8 @@ bluesky:
     handle: events.blr.today
     # Everything except events on these blr.today calendars
     exclude: [unwanted]
+    # Posted before other events, so a busy week drops those instead
+    priority: [curated]
   # Last Call replies come from their own account, so people can mute it
   last_call:
     handle: lastcall.blr.today

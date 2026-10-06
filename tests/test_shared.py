@@ -9,7 +9,7 @@ from scheduler.shared import database
 from scheduler.shared.calendars import Calendar, account_calendar, load_calendar
 from scheduler.shared.events import price, upcoming
 from scheduler.shared.ledger import Ledger, LedgerError, adopt, locked, reconcile
-from scheduler.shared.pacing import due, gap, in_window
+from scheduler.shared.pacing import allowance, in_window, posting_time, spacing
 from scheduler.shared.text import clip, details, fit, last_call, tickets
 
 
@@ -44,13 +44,29 @@ def test_price_reads_the_first_number():
     assert [price({"price": p}) for p in ("₹1,200", "500 - 800", "Free", 99, None)] == [1200.0, 500.0, 0.0, 99.0, None]
 
 
-def test_pacing():
-    assert gap(9, NOW) == datetime.timedelta(hours=1)
-    last = NOW.replace(hour=13)
-    assert due(last, 1, last).astimezone(NOW.tzinfo).strftime("%H:%M") == "16:00"
-    # The soonest event stops being postable tomorrow at 14:00, so it is due a day earlier
-    assert due(last, 1, last, last + datetime.timedelta(days=1, hours=1)).astimezone(NOW.tzinfo).strftime("%H:%M") == "14:00"
+def test_posting_time_only_counts_posting_hours():
+    hours = lambda d: d.total_seconds() / 3600
+    assert hours(posting_time(NOW, NOW + datetime.timedelta(hours=3))) == 3
+    assert hours(posting_time(NOW.replace(hour=18), NOW + datetime.timedelta(days=1))) == 1 + 0
+    assert hours(posting_time(NOW, NOW + datetime.timedelta(days=2))) == 18
     assert in_window(NOW) and not in_window(NOW.replace(hour=9, minute=59)) and not in_window(NOW.replace(hour=19))
+
+
+def test_spacing_gets_every_event_out_by_its_deadline():
+    day = datetime.timedelta(days=1)
+    # Three events due by tomorrow 10:00 share today's nine posting hours
+    assert spacing([NOW + day] * 3, NOW) == datetime.timedelta(hours=3)
+    # A tight first deadline shrinks the gap for everyone behind it
+    assert spacing([NOW + datetime.timedelta(hours=1), NOW + 3 * day], NOW) == datetime.timedelta(hours=1)
+    assert spacing([], NOW) is None
+
+
+def test_allowance_bursts_when_the_gap_is_under_a_run():
+    minute = datetime.timedelta(minutes=1)
+    assert allowance(None, 60 * minute, NOW) == 1
+    assert allowance(NOW - 30 * minute, 60 * minute, NOW) == 0
+    assert allowance(NOW - 30 * minute, minute, NOW) == 5
+    assert allowance(NOW, datetime.timedelta(0), NOW) == 20
 
 
 def test_text_helpers():

@@ -103,6 +103,7 @@ def run(config, events, state, now, get, dry_run=False, adopting=False):
     if adopting:
         return adopt(ledger, published(feed, now, full=True), NAME)
     excluded = [load_calendar(name, get) for name in config["feed"]["exclude"]]
+    priority = [load_calendar(name, get) for name in config["feed"].get("priority", [])]
     reposters = [BlueskyReposter(client(r["handle"]), account_calendar(r, get), now) for r in config["reposters"]]
     caller = None
     if handle := (config.get("last_call") or {}).get("handle"):
@@ -110,4 +111,4 @@ def run(config, events, state, now, get, dry_run=False, adopting=False):
             caller = LastCaller(client(handle))
         else:
             print(f"{NAME}: no app password for {handle}, skipping last calls")
-    return publish(Feed(feed), reposters, events, excluded, now, ledger, NAME, caller=caller)
+    return publish(Feed(feed), reposters, events, excluded, now, ledger, NAME, caller=caller, priority=priority)

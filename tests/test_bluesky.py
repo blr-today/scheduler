@@ -109,15 +109,27 @@ def test_events_less_than_two_days_away_are_never_posted_fresh(tmp_path):
     assert posts(feed) == []
 
 
-def test_seven_events_found_at_ten_are_spread_through_the_day(tmp_path):
+def simulate(tmp_path, events, days):
     feed, path = FakeClient("events"), tmp_path / "l.json"
-    events = [make_event(str(i), 96 + i) for i in range(7)]
-    for minute in range(0, 9 * 60, 5):
+    for minute in range(0, days * 24 * 60, 5):
         run(feed, events, NOW + datetime.timedelta(minutes=minute), Ledger(path))
-    times = [datetime.datetime.fromisoformat(r["createdAt"]).astimezone(IST) for r in posts(feed)]
-    gaps = [(b - a).total_seconds() / 60 for a, b in zip(times, times[1:])]
-    assert len(times) == 7 and times[0].strftime("%H:%M") == "10:00" and times[-1].hour < 19
-    assert all(50 <= g <= 90 for g in gaps), gaps
+    return {r["embed"]["external"]["uri"]: datetime.datetime.fromisoformat(r["createdAt"]).astimezone(IST) for r in posts(feed)}
+
+
+def test_a_few_events_are_spread_evenly_until_their_deadline(tmp_path):
+    events = [make_event(str(i), 96 + i) for i in range(7)]
+    posted = simulate(tmp_path, events, 3)
+    times = sorted(posted.values())
+    gaps = {round((b - a).total_seconds() / 3600, 1) for a, b in zip(times, times[1:]) if a.date() == b.date()}
+    assert len(posted) == 7 and max(gaps) - min(gaps) <= 0.5, gaps
+    assert all(posted[e["url"]] <= e["_start"] - datetime.timedelta(days=2) for e in events)
+
+
+def test_a_flood_of_events_still_all_get_out_in_time(tmp_path):
+    events = [make_event(f"bms{i}", 50 + (i % 100)) for i in range(400)]
+    posted = simulate(tmp_path, events, 5)
+    assert len(posted) == 400
+    assert all(posted[e["url"]] <= e["_start"] - datetime.timedelta(days=2) for e in events)
 
 
 def test_changes_get_one_reply_and_cancelled_records_follow(tmp_path):
@@ -176,3 +188,11 @@ def test_every_session_of_a_repeated_url_gets_a_calendar_record(tmp_path):
     feed = FakeClient("events")
     run(feed, [make_event("series", 5), make_event("series", 29), make_event("series", 53)], NOW, Ledger(tmp_path / "l.json"))
     assert len({rkey for c, rkey, _ in feed.puts if c == EVENT}) == 3
+
+
+def test_priority_calendar_goes_first_within_a_deadline_day(tmp_path):
+    events = [make_event("plain", 50), make_event("picked", 53, ["CURATED"]), make_event("later", 100, ["CURATED"])]
+    feed = FakeClient("events")
+    publish(Feed(feed), [], events, [], NOW, Ledger(tmp_path / "l.json"), "bluesky", priority=[Calendar(["CURATED"])])
+    # A later deadline day never jumps ahead, even for a priority calendar
+    assert [r["embed"]["external"]["uri"] for r in posts(feed)] == ["picked"]

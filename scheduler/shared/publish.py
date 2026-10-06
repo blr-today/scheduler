@@ -2,20 +2,20 @@ import datetime
 from collections import defaultdict
 
 from .corrections import changes, facts
-from .events import LEAD, cancelled, parse_time, sold_out, tracked, upcoming
+from .events import IST, LEAD, cancelled, parse_time, sold_out, tracked, upcoming
 from .ledger import reconcile
-from .pacing import due, in_window
+from .pacing import allowance, in_window, spacing
 from .text import last_call
 
 HISTORY = datetime.timedelta(days=30)
-MAX_PER_RUN = 4
+REPOSTS_PER_RUN = 20
 MAX_CORRECTIONS = 10
 
 
 class Reposter:
     """Shares the feed's posts of events on one calendar, at most cap new ones per run"""
 
-    def __init__(self, name, calendar, now, cap=MAX_PER_RUN):
+    def __init__(self, name, calendar, now, cap=REPOSTS_PER_RUN):
         self.name, self.calendar, self.now, self.left = name, calendar, now, cap
 
     def offer(self, entry, event):
@@ -91,11 +91,12 @@ def correct(feed, ledger, followed, now):
         print(f"Corrected {event.get('name')}: {'; '.join(lines)}")
 
 
-def publish(feed, reposters, events, excluded, now, ledger, name, cap=MAX_PER_RUN, order=None, caller=None):
+def publish(feed, reposters, events, excluded, now, ledger, name, order=None, caller=None, priority=()):
     """Post due events, correct changed ones and let reposters share theirs
 
     Posts go out between LEAD and WINDOW before an event, while corrections, reposts, Last Calls
     and calendar records follow every occurrence until it starts.
+    Events on a priority calendar go first, so a busy week drops other events instead.
     With order (url -> rank), only those events are posted, in that order and without pacing.
     Raises LedgerError, before posting anything, when the ledger disagrees with the platform.
     """
@@ -108,19 +109,22 @@ def publish(feed, reposters, events, excluded, now, ledger, name, cap=MAX_PER_RU
     live = [e for e in followed.values() if not cancelled(e)]
     # Sold-out events still get corrections and reposts, but are never posted fresh
     pending = [e for e in upcoming(window, now) if e["url"] not in ledger and not sold_out(e) and not ledger.gave_up(e["url"])]
+    # Soonest posting deadline first by day, and within a day priority calendars first
+    pending.sort(key=lambda e: ((e["_start"] - LEAD).astimezone(IST).date(), not any(e in c for c in priority), e["_start"]))
     if order is not None:
         pending = sorted((e for e in pending if e["url"] in order), key=lambda e: order[e["url"]])
-    last, posted, open_now = ledger.last_posted(), 0, in_window(now)
-    print(f"{name}: {len(window)} tracked, {len(ledger.posted())} posted, {len(pending)} pending, {'posting' if open_now else 'outside posting hours'}")
-    while open_now and pending and posted < cap:
-        if order is None and due(last, len(pending), now, pending[0]["_start"] - LEAD) > now:
-            break
+    open_now = in_window(now)
+    gap = spacing([e["_start"] - LEAD for e in pending], now) if order is None else datetime.timedelta(0)
+    quota = allowance(ledger.last_posted(), gap, now) if open_now else 0
+    print(f"{name}: {len(window)} tracked, {len(ledger.posted())} posted, {len(pending)} pending, gap {gap}, posting {quota} now")
+    posted = 0
+    while pending and posted < quota:
         event = pending.pop(0)
         ledger.begin(event["url"], facts(event), now)
         # A failure leaves the entry pending, and the next run settles it against the platform
         ref = feed.post(event, now)
         ledger.commit(event["url"], ref, now)
-        last, posted = now, posted + 1
+        posted += 1
         print(f"{name}: posted {event.get('name')} ({event['url']})")
         share(reposters, ledger.get(event["url"]), event)
         live.append(event)
