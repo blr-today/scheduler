@@ -52,3 +52,7 @@ fedi:
     - {account: food, types: [FoodEvent]}
     - {account: music, types: [MusicEvent]}
     - {account: film, types: [ScreeningEvent]}
+digest:
+  listmonk: https://lists.blr.today
+  # Same events the social feeds leave out
+  exclude: [unwanted]

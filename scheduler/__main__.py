@@ -6,6 +6,7 @@ from pathlib import Path
 
 import yaml
 
+from . import digest
 from .bluesky import publisher as bluesky
 from .fedi import publisher as fedi
 from .shared import database
@@ -29,6 +30,8 @@ def main():
     sub.add_parser("run", help="Post whatever is due (the default)")
     adopt = sub.add_parser("adopt", help="Build a missing ledger from the account's history")
     adopt.add_argument("platform", choices=sorted(PLATFORMS))
+    weekly = sub.add_parser("digest", help="Build this week's email as a listmonk campaign")
+    weekly.add_argument("--send", action="store_true", help="Start sending it, instead of leaving a draft")
     args = parser.parse_args()
 
     config = yaml.safe_load(Path(args.config).read_text())
@@ -41,6 +44,9 @@ def main():
             db = database.fetch(config["database"], Path(args.state, "events.db"), now)
             events = list(load_events(db))
             get = website(args.website)
+            if args.command == "digest":
+                digest.run(config["digest"], events, now, get, args.dry_run, args.send)
+                return 0
             failed = False
             for name, platform in PLATFORMS.items():
                 if name not in config or (args.platform and name not in args.platform):
