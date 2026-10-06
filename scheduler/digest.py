@@ -114,9 +114,11 @@ def run(config, events, now, get, dry_run=False, send=False):
     if camp and camp["status"] != "draft":
         print(f"digest: {name} is already {camp['status']}")
         return
-    fields = {"name": name, "subject": subject(now), "lists": [config["list"]], "content_type": "html", "body": body}
-    if config.get("template"):
-        fields["template_id"] = config["template"]
+    list_id = os.environ.get("LISTMONK_LIST_ID", config.get("list"))
+    template = os.environ.get("LISTMONK_TEMPLATE_ID", config.get("template"))
+    fields = {"name": name, "subject": subject(now), "lists": [int(list_id)], "content_type": "html", "body": body}
+    if template:
+        fields["template_id"] = int(template)
     camp = lm.call("PUT", f"/api/campaigns/{camp['id']}", json=fields) if camp else lm.call("POST", "/api/campaigns", json=fields)
     if send:
         lm.call("PUT", f"/api/campaigns/{camp['id']}/status", json={"status": "running"})
