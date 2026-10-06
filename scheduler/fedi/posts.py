@@ -12,12 +12,15 @@ MAX_BYTES = 400_000
 
 
 def text(event):
-    """Post body for an Event: Mastodon shows the name as a heading above it, so the title is left out"""
+    """Post body for an Event
+
+    Mastodon shows the name as a heading and the Event's url (the upstream listing) as a link
+    below it, so the body leaves out both.
+    """
     hosts = listed_on(event)
     parts = [
         fit([(0, "")] + details(event)[1:], 1500),
         clip(summary(event), 500),
-        "🔗 " + event["url"],
         "Also on " + ", ".join(hosts[1:]) if hosts[1:] else None,
         " ".join(f"#{tag}" for tag in hashtags(event)),
     ]
@@ -56,6 +59,6 @@ def compress(data):
 
 
 def event_link(content):
-    """The upstream event URL, which text() always puts after 🔗"""
+    """The upstream event URL after 🔗, which Last Call replies carry"""
     match = re.search(r'🔗\s*<a\s[^>]*href="([^"]+)"', content or "")
     return html.unescape(match.group(1)) if match else None

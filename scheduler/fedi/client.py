@@ -45,6 +45,15 @@ class Client:
                 return
             max_id = page[-1]["id"]
 
+    def event_url(self, object_id):
+        """The upstream url of an Event, read from its ActivityPub object"""
+        try:
+            res = self.http.get(object_id, headers={"Accept": "application/activity+json"}, timeout=30)
+            obj = res.json() if res.ok else {}
+        except (requests.RequestException, ValueError):
+            return None
+        return obj.get("url") if obj.get("type") == "Event" and obj.get("url") != object_id else None
+
     def media(self, data, description):
         files = {"file": ("poster.jpg", data, "image/jpeg")}
         return self.call("POST", "/api/v2/media", files=files, data={"description": description})["id"]

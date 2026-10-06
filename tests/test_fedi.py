@@ -12,16 +12,19 @@ from scheduler.shared.publish import publish
 
 
 class FakeMastodon:
-    """Stands in for a Mastodon-API account: remembers statuses and boosts"""
+    """Stands in for a Mastodon-API account: remembers statuses and boosts, and serves their Events"""
 
     def __init__(self, account, statuses=()):
         self.account, self.id, self.posted, self.boosted = account, account, [], []
         self.existing = list(statuses)
 
     def statuses(self, since=None):
-        mine = [{"id": s["id"], "url": s["url"], "account": {"id": self.id}, "created_at": "2026-10-06T04:30:00Z",
-                 "content": f'🔗 <a href="{s["link"]}">x</a>', "in_reply_to_id": s["reply_to"]} for s in self.posted]
+        mine = [{"id": s["id"], "uri": s["url"], "account": {"id": self.id}, "created_at": "2026-10-06T04:30:00Z",
+                 "content": f'🔗 <a href="{s["link"]}">x</a>' if s["link"] else "event", "in_reply_to_id": s["reply_to"]} for s in self.posted]
         return iter(self.existing + mine)
+
+    def event_url(self, object_id):
+        return next((s["extra"].get("event_url") for s in self.posted if s["url"] == object_id), None)
 
     def media(self, data, description):
         raise AssertionError("no images in tests")
@@ -42,8 +45,8 @@ class FakeMastodon:
 
 def test_text_skips_the_title_mastodon_shows_as_a_heading():
     e = make_event("https://a.example/e", 9, ["INDIRANAGAR"], sameAs=["https://b.example/e"], description="<p>Fun</p>", **{"@type": "MusicEvent"})
-    assert text(e) == ("Music event\n🗓️ Tue, 6 Oct · 7:00 PM\n\nFun\n\n🔗 https://a.example/e\n\nAlso on b.example\n\n"
-                       "#Bengaluru #Bangalore #Indiranagar #Music")
+    # Mastodon shows the name and the Event's url itself, so neither is repeated in the body
+    assert text(e) == "Music event\n🗓️ Tue, 6 Oct · 7:00 PM\n\nFun\n\nAlso on b.example\n\n#Bengaluru #Bangalore #Indiranagar #Music"
 
 
 def test_event_fields_carry_times_place_and_upstream_link():
@@ -89,7 +92,15 @@ def test_mirror_run_posts_events_boosts_and_last_calls(tmp_path):
     ledger = Ledger(tmp_path / "fedi.json")
     for _ in range(2):
         publish(Feed(feed), [FediReposter(curated, Calendar(["CURATED"]), NOW)], events, [], NOW, Ledger(tmp_path / "fedi.json"), "fedi", order=order, caller=LastCaller(lastcall))
-    assert [p["link"] for p in feed.posted] == ["https://x/b", "https://x/a"]
+    assert [p["extra"]["event_url"] for p in feed.posted] == ["https://x/b", "https://x/a"]
     assert feed.posted[1]["extra"]["event_start"] == "2026-10-08T15:00:00+05:30"
     assert curated.boosted == ["events2"]
     assert len(lastcall.posted) == 1 and lastcall.posted[0]["reply_to"] == "events2"
+
+
+
+def test_posts_unknown_to_the_ledger_are_matched_through_their_event_object():
+    feed = FakeMastodon("events")
+    feed.post("Music event", extra={"event_url": "https://x/a"})
+    assert {u: r["url"] for u, (r, _) in published(feed, NOW).items()} == {"https://x/a": "https://fedi/events/1"}
+    assert {u for u in published(feed, NOW, known={"https://fedi/events/1": "https://x/known"})} == {"https://x/known"}

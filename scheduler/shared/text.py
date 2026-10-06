@@ -137,7 +137,8 @@ def details(event):
         f"Subtitles: {s}" if (s := languages(event.get("subtitleLanguage"))) else None,
     ]))
     sport = people(listing(event.get("sport")) + listing(event.get("sports")))
-    works = people(listing(event.get("workPresented")) + listing(event.get("workPerformed")))
+    # Some listings name the event itself as the work presented
+    works = ", ".join(w for w in people(listing(event.get("workPresented")) + listing(event.get("workPerformed"))).split(", ") if w and w != clip(event.get("name"), 200))
     lines = [
         (0, clip(event.get("name"), 150)),
         (4, " · ".join(filter(None, facts))),

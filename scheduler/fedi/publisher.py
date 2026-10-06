@@ -16,31 +16,37 @@ NAME = "fedi"
 
 
 def ref_of(status):
-    return {"id": status["id"], "url": status.get("url") or status.get("uri")}
+    """The API id to act on, and the stable ActivityPub id, which is also the post's web page on snac"""
+    return {"id": status["id"], "url": status.get("uri") or status.get("url")}
 
 
-def published(client, now, full=False):
-    """Event URL -> (status ref, created) for the account's own top-level statuses"""
-    posts = {}
+def published(client, now, full=False, known=None):
+    """Event URL -> (status ref, created) for the account's own top-level statuses
+
+    known maps a status's ActivityPub id to the event URL the ledger has for it; any other status
+    is looked up in its Event object, whose url is the upstream listing.
+    """
+    posts, known = {}, known or {}
     for status in client.statuses(None if full else now - HISTORY):
         # Boosts of the feed's statuses show up as wrappers around the original
         original = status.get("reblog") or status
         if str((original.get("account") or {}).get("id", client.id)) != str(client.id) or original.get("in_reply_to_id"):
             continue
-        if url := event_link(original.get("content")):
-            posts.setdefault(url, (ref_of(original), parse_time(original.get("created_at"))))
+        ref = ref_of(original)
+        if url := known.get(ref["url"]) or event_link(original.get("content")) or client.event_url(ref["url"]):
+            posts.setdefault(url, (ref, parse_time(original.get("created_at"))))
     return posts
 
 
 class Feed:
-    def __init__(self, client):
-        self.client = client
+    def __init__(self, client, known=None):
+        self.client, self.known = client, known or {}
 
     def sync(self, wanted, now):
         """The posts themselves are ActivityPub Events, so there are no separate calendar records"""
 
     def published(self, now, full=False):
-        return published(self.client, now, full)
+        return published(self.client, now, full, self.known)
 
     def post(self, event, now):
         media = []
@@ -113,6 +119,7 @@ def run(config, events, state, now, get, dry_run=False, adopting=False, limit=No
     caller = LastCaller(client(config["last_call"]["account"])) if config.get("last_call") else None
     # Replicate what the Bluesky firehose posted instead of pacing independently
     order = mirror_order(state, now) if config.get("mirror") == "bluesky" else None
-    outcome = publish(Feed(feed), reposters, events, excluded, now, ledger, NAME, order=order, caller=caller, limit=limit)
+    known = {e["ref"]["url"]: url for url, e in ledger.posted().items()}
+    outcome = publish(Feed(feed, known), reposters, events, excluded, now, ledger, NAME, order=order, caller=caller, limit=limit)
     report.write(state, NAME, report.build(NAME, outcome, ledger, accounts, now, lambda ref: ref.get("url"), dry_run))
     return outcome
