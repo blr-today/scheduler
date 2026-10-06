@@ -7,6 +7,12 @@ from .events import IST, listing, tail, flatten, price, tickets_left
 
 ATTENDANCE = {"OfflineEventAttendanceMode": "In person", "OnlineEventAttendanceMode": "Online", "MixedEventAttendanceMode": "In person and online"}
 LANGUAGES = {"en": "English", "hi": "Hindi", "kn": "Kannada", "ta": "Tamil", "te": "Telugu", "ml": "Malayalam", "mr": "Marathi", "bn": "Bengali", "ur": "Urdu", "de": "German", "fr": "French", "ja": "Japanese"}
+NEIGHBOURHOODS = {
+    "INDIRANAGAR": "Indiranagar", "KORAMANGALA": "Koramangala", "HSR": "HSRLayout", "JAYANAGAR": "Jayanagar",
+    "JPNAGAR": "JPNagar", "WHITEFIELD": "Whitefield", "CBD": "CentralBengaluru", "NORTHBLR": "NorthBengaluru",
+}
+TYPE_TAGS = {"ChildrensEvent": "Kids", "EducationEvent": "Workshop"}
+CITY_TAGS = ["Bengaluru", "Bangalore"]
 LAST_CALL = "Last Call"
 LAST_CALL_TAG = "#lastcall"
 
@@ -125,10 +131,7 @@ def details(event):
         facts.insert(0, humanize(status.removeprefix("Event")).upper())
     capacity = event.get("maximumAttendeeCapacity") or event.get("maximumPhysicalAttendeeCapacity")
     audience = [a if isinstance(a, str) else (a or {}).get("audienceType") or name_of(a) for a in listing(event.get("audience"))]
-    ages = " · ".join(filter(None, [
-        f"Ages {clip(event['typicalAgeRange'], 20)}" if isinstance(event.get("typicalAgeRange"), str) else None,
-        "For " + ", ".join(filter(None, audience)) if any(audience) else None,
-    ]))
+    ages = "For " + ", ".join(filter(None, audience)) if any(audience) else None
     spoken = " · ".join(filter(None, [
         None if (lang := languages(event.get("inLanguage"))) == "English" else lang,
         f"Subtitles: {s}" if (s := languages(event.get("subtitleLanguage"))) else None,
@@ -177,6 +180,18 @@ def image_url(event):
         if isinstance(image, str) and image.startswith("http"):
             return image
     return None
+
+
+def hashtags(event):
+    """City, neighbourhood and event type hashtags, without the #"""
+    keywords = event.get("keywords") or []
+    found = CITY_TAGS + [tag for key, tag in NEIGHBOURHOODS.items() if key in keywords]
+    kind = event.get("@type") if isinstance(event.get("@type"), str) else "Event"
+    if kind == "Event" and isinstance(event.get("additionalType"), str):
+        kind = event["additionalType"]
+    if kind != "Event":
+        found.append(TYPE_TAGS.get(kind, kind.removesuffix("Event")))
+    return [t for t in dict.fromkeys(found) if t][:8]
 
 
 def last_call(event):

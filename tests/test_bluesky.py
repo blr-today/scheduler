@@ -272,7 +272,7 @@ def test_sessions_are_cached_and_refreshed_instead_of_logging_in(tmp_path, monke
 
 
 def test_neighbourhood_and_type_go_in_the_tags_field_only(tmp_path):
-    from scheduler.bluesky.records import tags
+    from scheduler.shared.text import hashtags as tags
     city = ["Bengaluru", "Bangalore"]
     assert tags(make_event("a", 53, ["INDIRANAGAR", "FREE"], **{"@type": "SportsEvent"})) == city + ["Indiranagar", "Sports"]
     assert tags(make_event("b", 53, ["CBD", "HSR"], **{"@type": "ChildrensEvent"})) == city + ["HSRLayout", "CentralBengaluru", "Kids"]

@@ -193,3 +193,8 @@ def test_forecast_replays_the_spacing_and_flags_misses():
     assert times[0] == NOW and times == sorted(times) and times[-1] < NOW + datetime.timedelta(days=1)
     late = make_event("late", 47.9)
     assert forecast([late], None, NOW.replace(hour=11))[1] == [late]
+
+
+def test_age_ranges_stay_out_of_post_text():
+    text = fit(details(make_event("a", 53, typicalAgeRange="12+", audience={"audienceType": "Families"})), 300)
+    assert "Ages" not in text and "🧒 For Families" in text

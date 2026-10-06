@@ -98,7 +98,7 @@ def ledger_path(state):
     return Path(state, "ledger", f"{NAME}.json")
 
 
-def run(config, events, state, now, get, dry_run=False, adopting=False):
+def run(config, events, state, now, get, dry_run=False, adopting=False, limit=None):
     passwords = json.loads(os.environ.get("BLUESKY_APP_PASSWORDS") or "{}")
     cls = DryClient if dry_run else Client
 
@@ -119,7 +119,7 @@ def run(config, events, state, now, get, dry_run=False, adopting=False):
             caller = LastCaller(client(handle))
         else:
             print(f"{NAME}: no app password for {handle}, skipping last calls")
-    outcome = publish(Feed(feed), reposters, events, excluded, now, ledger, NAME, caller=caller, priority=priority)
+    outcome = publish(Feed(feed), reposters, events, excluded, now, ledger, NAME, caller=caller, priority=priority, limit=limit)
     # The report is not a platform write, so dry runs publish it too
     report.write(state, NAME, report.build(NAME, outcome, ledger, accounts, now, post_link, dry_run))
     return outcome

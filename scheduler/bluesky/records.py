@@ -4,7 +4,7 @@ import re
 
 from ..shared.events import iso, listing, tail
 from ..shared.http import fetch_image
-from ..shared.text import clip, details, fit, image_url, last_call, listed_on, place, summary
+from ..shared.text import clip, details, fit, hashtags, image_url, last_call, listed_on, place, summary
 
 MAX_BLOB = 1_000_000
 POST = "app.bsky.feed.post"
@@ -12,28 +12,10 @@ REPOST = "app.bsky.feed.repost"
 EVENT = "community.lexicon.calendar.event"
 MODES = {"OfflineEventAttendanceMode": "inperson", "OnlineEventAttendanceMode": "virtual", "MixedEventAttendanceMode": "hybrid"}
 STATUSES = {"EventScheduled": "scheduled", "EventCancelled": "cancelled", "EventPostponed": "postponed", "EventRescheduled": "rescheduled"}
-NEIGHBOURHOODS = {
-    "INDIRANAGAR": "Indiranagar", "KORAMANGALA": "Koramangala", "HSR": "HSRLayout", "JAYANAGAR": "Jayanagar",
-    "JPNAGAR": "JPNagar", "WHITEFIELD": "Whitefield", "CBD": "CentralBengaluru", "NORTHBLR": "NorthBengaluru",
-}
-TYPE_TAGS = {"ChildrensEvent": "Kids", "EducationEvent": "Workshop"}
-CITY_TAGS = ["Bengaluru", "Bangalore"]
 
 
 def text(event):
     return fit(details(event), 300)
-
-
-def tags(event):
-    """City, neighbourhood and event type hashtags for the post's tags field, which costs no text space"""
-    keywords = event.get("keywords") or []
-    found = CITY_TAGS + [tag for key, tag in NEIGHBOURHOODS.items() if key in keywords]
-    kind = event.get("@type") if isinstance(event.get("@type"), str) else "Event"
-    if kind == "Event" and isinstance(event.get("additionalType"), str):
-        kind = event["additionalType"]
-    if kind != "Event":
-        found.append(TYPE_TAGS.get(kind, kind.removesuffix("Event")))
-    return [t for t in dict.fromkeys(found) if t][:8]
 
 
 def thumbnail(client, event):
@@ -61,7 +43,7 @@ def post_record(client, event, now):
         "langs": ["en"],
         "embed": {"$type": "app.bsky.embed.external", "external": external},
     }
-    record["tags"] = tags(event)
+    record["tags"] = hashtags(event)
     return record
 
 

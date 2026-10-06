@@ -116,7 +116,7 @@ def correct(feed, ledger, followed, now):
         print(f"Corrected {event.get('name')}: {'; '.join(lines)}")
 
 
-def publish(feed, reposters, events, excluded, now, ledger, name, order=None, caller=None, priority=()):
+def publish(feed, reposters, events, excluded, now, ledger, name, order=None, caller=None, priority=(), limit=None):
     """Post due events, correct changed ones and let reposters share theirs
 
     Posts go out between LEAD and WINDOW before an event, while corrections, reposts, Last Calls
@@ -143,9 +143,11 @@ def publish(feed, reposters, events, excluded, now, ledger, name, order=None, ca
     open_now = in_window(now)
     gap = spacing([e["_start"] - LEAD for e in pending], now) if order is None else datetime.timedelta(0)
     if order is not None:
-        due, next_slot = [now] * min(len(pending), MAX_PER_RUN), ledger.next_slot
+        due, next_slot = [now] * (min(len(pending), MAX_PER_RUN) if open_now else 0), ledger.next_slot
     else:
         due, next_slot = slots(ledger.next_slot, gap, now, len(pending) if open_now else 0)
+    if limit is not None:
+        due = due[:limit]
     print(f"{name}: {len(window)} tracked, {len(ledger.posted())} posted, {len(pending)} pending, gap {gap}, posting {len(due)} now")
     posted = 0
     while pending and posted < len(due):

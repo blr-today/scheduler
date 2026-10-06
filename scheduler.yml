@@ -20,3 +20,35 @@ bluesky:
       calendar: cbd
     - handle: free.blr.today
       tags: [FREE]
+fedi:
+  server: https://fedi.blr.today
+  # Post exactly what the Bluesky firehose posted, read from its ledger
+  mirror: bluesky
+  feed:
+    account: events
+    exclude: [unwanted]
+  last_call:
+    account: lastcall
+  reposters:
+    - {account: curated, calendar: curated}
+    - {account: indiranagar, calendar: indiranagar}
+    - {account: cbd, calendar: cbd}
+    - {account: whitefield, calendar: whitefield}
+    - {account: koramangala, calendar: koramangala}
+    - {account: north, calendar: north}
+    - {account: hsr, calendar: hsr}
+    - {account: jpnagar, calendar: jpnagar}
+    - {account: jayanagar, calendar: jayanagar}
+    - {account: fitness, calendar: fitness}
+    - {account: books, calendar: bookstores}
+    - {account: underline, calendar: underline}
+    - {account: bic, calendar: bic}
+    - {account: sabha, calendar: sabha}
+    - {account: scigallery, calendar: scigallery}
+    - {account: free, tags: [FREE]}
+    - {account: budget, tags: [BUDGET]}
+    - {account: workshops, types: [EducationEvent]}
+    - {account: sports, types: [SportsEvent]}
+    - {account: food, types: [FoodEvent]}
+    - {account: music, types: [MusicEvent]}
+    - {account: film, types: [ScreeningEvent]}

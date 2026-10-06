@@ -7,12 +7,14 @@ from pathlib import Path
 import yaml
 
 from .bluesky import publisher as bluesky
+from .fedi import publisher as fedi
 from .shared import database
 from .shared.calendars import website
 from .shared.events import load_events
 from .shared.ledger import LedgerError, locked
 
-PLATFORMS = {"bluesky": bluesky}
+# Bluesky runs first, because the fediverse mirrors what it posted
+PLATFORMS = {"bluesky": bluesky, "fedi": fedi}
 
 
 def main():
@@ -21,6 +23,8 @@ def main():
     parser.add_argument("--state", default=os.environ.get("SCHEDULER_STATE", "state"), help="Directory for events.db and the ledgers")
     parser.add_argument("--website", help="Local blr-today/website checkout for calendar definitions")
     parser.add_argument("--dry-run", action="store_true", help="Read real state, print writes, change nothing")
+    parser.add_argument("--platform", action="append", choices=sorted(PLATFORMS), help="Only run these platforms")
+    parser.add_argument("--limit", type=int, help="At most this many new posts per platform, for staged rollouts")
     sub = parser.add_subparsers(dest="command")
     sub.add_parser("run", help="Post whatever is due (the default)")
     adopt = sub.add_parser("adopt", help="Build a missing ledger from the account's history")
@@ -39,10 +43,10 @@ def main():
             get = website(args.website)
             failed = False
             for name, platform in PLATFORMS.items():
-                if name not in config:
+                if name not in config or (args.platform and name not in args.platform):
                     continue
                 try:
-                    platform.run(config[name], events, args.state, now, get, args.dry_run)
+                    platform.run(config[name], events, args.state, now, get, args.dry_run, limit=args.limit)
                 except LedgerError:
                     raise
                 except Exception as e:
