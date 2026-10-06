@@ -1,0 +1,50 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions: {}
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+    - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+    - name: Test
+      run: uv run --frozen pytest -q
+  image:
+    name: Image
+    # Images are tagged with the run number, which only ever goes up
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # push to ghcr.io
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+    - name: Build and push
+      env:
+        GH_TOKEN: ${{ github.token }}
+        ACTOR: ${{ github.actor }}
+        IMAGE: ghcr.io/${{ github.repository }}
+        TAG: ${{ github.run_number }}
+      run: |
+        echo "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+        docker build \
+          --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+          --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+          -t "$IMAGE:$TAG" .
+        docker push "$IMAGE:$TAG"
+        echo "Pushed \`$IMAGE:$TAG\` from $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"

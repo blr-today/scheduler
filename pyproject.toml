@@ -1,0 +1,18 @@
+[project]
+name = "blr-today-scheduler"
+version = "0.1.0"
+description = "Posts upcoming blr.today events to Bluesky"
+requires-python = ">=3.14"
+dependencies = [
+    "PyYAML~=6.0",
+    "requests~=2.32",
+]
+
+[dependency-groups]
+dev = [
+    "pytest~=9.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

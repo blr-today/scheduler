@@ -1,0 +1,16 @@
+# Where events come from; fetched with ETag revalidation
+database: https://blr.today/api/events.db
+bluesky:
+  pds: https://eurosky.social
+  feed:
+    handle: events.blr.today
+    # Everything except events on these blr.today calendars
+    exclude: [unwanted]
+  # Last Call replies come from their own account, so people can mute it
+  last_call:
+    handle: lastcall.blr.today
+  reposters:
+    - handle: indiranagar.blr.today
+      calendar: indiranagar
+    - handle: curated.blr.today
+      calendar: curated

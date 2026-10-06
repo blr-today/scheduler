@@ -1,0 +1,157 @@
+import datetime
+
+import pytest
+
+from conftest import NOW, FakeClient, make_event
+from scheduler.bluesky.publisher import BlueskyReposter, Feed, LastCaller, published
+from scheduler.bluesky.records import EVENT, POST, event_record, hashtag_facets, text
+from scheduler.shared.calendars import Calendar
+from scheduler.shared.corrections import facts
+from scheduler.shared.events import IST
+from scheduler.shared.ledger import Ledger, LedgerError
+from scheduler.shared.publish import publish
+
+REF = {"uri": "at://events/post/1", "cid": "c"}
+
+
+def posts(client):
+    return [r for c, r in client.created if c == POST and "reply" not in r]
+
+
+def run(client, events, now, ledger, reposters=(), excluded=(), caller=None):
+    return publish(Feed(client), list(reposters), events, list(excluded), now, ledger, "bluesky", caller=caller)
+
+
+def fresh_ledger(tmp_path, **entries):
+    ledger = Ledger(tmp_path / "l.json")
+    for url, (ref, event) in entries.items():
+        ledger.record(url, ref, facts(event), NOW)
+    ledger.save()
+    return ledger
+
+
+def test_post_text():
+    e = make_event("x", 24 + 9.5, ["FREE"], location={"name": "Champaca"})
+    assert text(e) == "X\n\n🗓️ Wed, 7 Oct · 7:30 PM\n📍 Champaca\n🎟️ Free"
+    e = make_event("z", 9, maximumAttendeeCapacity=40, organizer={"name": "Courtyard"}, **{"@type": "MusicEvent"})
+    e["_end"] = e["_start"] + datetime.timedelta(hours=2)
+    assert text(e) == "Z\n\nMusic event\n🗓️ Tue, 6 Oct · 7:00 PM – 9:00 PM\n👥 Capacity 40\n🏠 By Courtyard"
+
+
+def test_event_record_links_upstream_without_rsvps():
+    e = make_event("https://www.example.com/e", 5, location={"name": "Champaca", "address": {"streetAddress": "Vasanth Nagar"}, "geo": {"latitude": 12.98, "longitude": 77.59}}, eventAttendanceMode="https://schema.org/OfflineEventAttendanceMode")
+    r = event_record(e)
+    assert r["rsvpExpected"] is False and r["mode"] == f"{EVENT}#inperson"
+    assert r["uris"][0]["name"] == "Details on example.com"
+    assert [l["$type"] for l in r["locations"]] == ["community.lexicon.location.address", "community.lexicon.location.geo"]
+
+
+def test_first_run_posts_and_reposts(tmp_path):
+    feed, curated, hood = FakeClient("events"), FakeClient("curated"), FakeClient("indiranagar")
+    reposters = [BlueskyReposter(curated, Calendar(["CURATED"]), NOW), BlueskyReposter(hood, Calendar(["INDIRANAGAR"]), NOW)]
+    events = [make_event("junk", 2, ["LOW-QUALITY"]), make_event("b", 5, ["INDIRANAGAR", "CURATED"]), make_event("c", 6, ["CURATED"])]
+    assert run(feed, events, NOW, Ledger(tmp_path / "l.json"), reposters, [Calendar(["LOW-QUALITY"])]) == 1
+    assert [r["embed"]["external"]["uri"] for r in posts(feed)] == ["b"]
+    assert [r["name"] for c, _, r in feed.puts if c == EVENT] == ["B", "C"]
+    assert len(curated.created) == len(hood.created) == 1
+    # The next post waits for its slot, so a run five minutes later posts nothing
+    assert run(feed, events, NOW + datetime.timedelta(minutes=5), Ledger(tmp_path / "l.json"), reposters) == 0
+
+
+def test_existing_account_without_ledger_refuses_to_post(tmp_path):
+    old = {"uri": "at://events/post/old", "cid": "c", "value": {"createdAt": "2026-10-05T04:00:00Z", "embed": {"external": {"uri": "a"}}}}
+    feed = FakeClient("events", {POST: [old]})
+    with pytest.raises(LedgerError, match="adopt"):
+        run(feed, [make_event("a", 5), make_event("b", 6)], NOW, Ledger(tmp_path / "missing.json"))
+    assert feed.created == [] and feed.puts == []
+
+
+def test_post_on_the_account_missing_from_the_ledger_refuses_to_post(tmp_path):
+    ledger = fresh_ledger(tmp_path)
+    stray = {"uri": "at://events/post/9", "cid": "c", "value": {"createdAt": "2026-10-06T03:00:00Z", "embed": {"external": {"uri": "b"}}}}
+    feed = FakeClient("events", {POST: [stray]})
+    with pytest.raises(LedgerError, match="stale"):
+        run(feed, [make_event("a", 5)], NOW, ledger)
+    assert feed.created == []
+
+
+def test_crash_mid_post_is_settled_without_a_duplicate(tmp_path):
+    feed = FakeClient("events")
+    feed.fail_next = True
+    with pytest.raises(RuntimeError):
+        run(feed, [make_event("a", 5)], NOW, Ledger(tmp_path / "l.json"))
+    assert Ledger(tmp_path / "l.json").pending() == ["a"]
+    # Nothing reached the platform, so the next run retries it once
+    run(feed, [make_event("a", 5)], NOW + datetime.timedelta(minutes=5), Ledger(tmp_path / "l.json"))
+    assert len(posts(feed)) == 1 and Ledger(tmp_path / "l.json").get("a")["status"] == "posted"
+
+
+def test_crash_after_the_platform_accepted_adopts_the_post(tmp_path):
+    ledger = fresh_ledger(tmp_path)
+    ledger.begin("a", facts(make_event("a", 5)), NOW)
+    made = {"uri": "at://events/post/7", "cid": "c", "value": {"createdAt": "2026-10-06T04:30:00Z", "embed": {"external": {"uri": "a"}}}}
+    feed = FakeClient("events", {POST: [made]})
+    run(feed, [make_event("a", 5)], NOW + datetime.timedelta(minutes=5), Ledger(tmp_path / "l.json"))
+    assert posts(feed) == [] and Ledger(tmp_path / "l.json").get("a")["ref"]["uri"] == "at://events/post/7"
+
+
+def test_nothing_is_posted_outside_posting_hours(tmp_path):
+    feed = FakeClient("events")
+    run(feed, [make_event("a", 5)], NOW.replace(hour=8), Ledger(tmp_path / "l.json"))
+    assert posts(feed) == []
+
+
+def test_seven_events_found_at_ten_are_spread_through_the_day(tmp_path):
+    feed, path = FakeClient("events"), tmp_path / "l.json"
+    events = [make_event(str(i), 30 + i) for i in range(7)]
+    for minute in range(0, 9 * 60, 5):
+        run(feed, events, NOW + datetime.timedelta(minutes=minute), Ledger(path))
+    times = [datetime.datetime.fromisoformat(r["createdAt"]).astimezone(IST) for r in posts(feed)]
+    gaps = [(b - a).total_seconds() / 60 for a, b in zip(times, times[1:])]
+    assert len(times) == 7 and times[0].strftime("%H:%M") == "10:00" and times[-1].hour < 19
+    assert all(50 <= g <= 90 for g in gaps), gaps
+
+
+def test_changes_get_one_reply_and_cancelled_records_follow(tmp_path):
+    ledger = fresh_ledger(tmp_path, a=(REF, make_event("a", 5, location="Old Venue")))
+    moved = make_event("a", 7, location="New Venue")
+    feed = FakeClient("events")
+    for _ in range(2):
+        run(feed, [moved], NOW, Ledger(tmp_path / "l.json"))
+    replies = [r for c, r in feed.created if "reply" in r]
+    assert [r["text"] for r in replies] == ["✏️ Update\n\n🗓️ Now Tue, 6 Oct · 5:00 PM\n📍 Now at New Venue"]
+    gone = make_event("a", 7, location="New Venue", eventStatus="https://schema.org/EventCancelled")
+    run(feed, [gone], NOW, Ledger(tmp_path / "l.json"))
+    assert feed.created[-1][1]["text"] == "✏️ Update\n\n❌ Cancelled"
+    assert feed.puts[-1][2]["status"] == f"{EVENT}#cancelled"
+
+
+def test_sold_out_gets_an_update_and_is_never_posted_fresh(tmp_path):
+    ledger = fresh_ledger(tmp_path, a=(REF, make_event("a", 5)))
+    gone = [{"price": "500", "availability": "https://schema.org/SoldOut"}]
+    feed = FakeClient("events")
+    run(feed, [make_event("a", 5, ["LASTCALL"], offers=gone), make_event("b", 6, offers=gone)], NOW, ledger)
+    assert [r["text"] for c, r in feed.created] == ["✏️ Update\n\n🚫 Sold out"]
+
+
+def test_last_call_comes_once_from_its_own_account(tmp_path):
+    ledger = fresh_ledger(tmp_path, a=(REF, make_event("a", 5)))
+    hot = make_event("a", 5, ["LASTCALL"], remainingAttendeeCapacity=4)
+    feed, lastcall = FakeClient("events"), FakeClient("lastcall")
+    for _ in range(2):
+        run(feed, [hot], NOW, Ledger(tmp_path / "l.json"), caller=LastCaller(lastcall))
+    assert feed.created == [] and len(lastcall.created) == 1
+    reply = lastcall.created[0][1]
+    assert reply["text"] == "Last Call: Only 4 seats left for the event #lastcall" and reply["reply"]["parent"] == REF
+    tag = reply["facets"][0]
+    assert reply["text"].encode()[tag["index"]["byteStart"]:tag["index"]["byteEnd"]] == b"#lastcall"
+    assert hashtag_facets("🎟️ #x")[0]["index"] == {"byteStart": 8, "byteEnd": 10}
+
+
+def test_published_skips_replies_and_keeps_creation_time():
+    records = [
+        {"uri": "at://e/p/1", "cid": "c", "value": {"createdAt": "2026-10-06T04:00:00Z", "embed": {"external": {"uri": "a"}}}},
+        {"uri": "at://e/p/2", "cid": "c", "value": {"createdAt": "2026-10-06T05:00:00Z", "reply": {}, "embed": {"external": {"uri": "b"}}}},
+    ]
+    found = published(FakeClient("events", {POST: records}), NOW)
+    assert list(found) == ["a"] and found["a"][1].hour == 4
