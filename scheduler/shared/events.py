@@ -4,8 +4,9 @@ import re
 import sqlite3
 
 IST = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
-WINDOW = datetime.timedelta(days=14)
-LEAD = datetime.timedelta(hours=1)
+# Events are announced between two and seven days before they start
+WINDOW = datetime.timedelta(days=7)
+LEAD = datetime.timedelta(days=2)
 SKIP_STATUS = {"EventCancelled"}
 
 
@@ -106,8 +107,13 @@ def sold_out(event):
     return tickets_left(event) == 0
 
 
+def tracked(events, now):
+    """Every occurrence from now until WINDOW, which corrections, reposts and calendar records follow"""
+    return sorted((e for e in events if now <= e["_start"] <= now + WINDOW), key=lambda e: e["_start"])
+
+
 def upcoming(events, now, include_cancelled=False):
-    """Earliest occurrence of each URL that starts between LEAD and WINDOW from now"""
+    """Earliest occurrence of each URL that starts between LEAD and WINDOW from now, so it can be posted"""
     first = {}
     for event in events:
         if cancelled(event) and not include_cancelled:

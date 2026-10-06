@@ -52,9 +52,10 @@ Fediverse accounts are all planned, on `fedi.blr.today` once the server is up.
    old one after an SQLite integrity check, and data older than 48 hours stops the run.
 2. Checks the ledger against the account's recent posts (see below).
 3. Updates calendar records and posts corrections.
-4. Between 10:00 and 19:00 IST, posts the next event once it is due. Posts are spaced as
-   `(time left until 19:00) / (pending + 1)`, at least 7.5 minutes apart, and never later
-   than 4 hours before the event starts.
+4. Between 10:00 and 19:00 IST, posts the next event that starts 2–7 days from now, soonest
+   first, once it is due. Posts are spaced as `(time left until 19:00) / (pending + 1)`, at
+   least 7.5 minutes apart, and an event jumps the queue a day before it leaves the window.
+   Corrections, reposts and Last Calls keep following every posted event until it starts.
 5. Catches up on missing reposts and Last Calls.
 
 ## Never posting twice

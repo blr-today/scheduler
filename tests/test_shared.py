@@ -36,8 +36,8 @@ def test_calendar_falls_back_to_default_excludes():
 
 
 def test_upcoming_keeps_the_window_and_first_occurrence():
-    events = [make_event("a", 48), make_event("a", 24), make_event("past", -2), make_event("now", 0.5), make_event("far", 15 * 24)]
-    assert [(e["url"], e["_start"]) for e in upcoming(events, NOW)] == [("a", NOW + datetime.timedelta(hours=24))]
+    events = [make_event("a", 72), make_event("a", 50), make_event("soon", 24), make_event("past", -2), make_event("far", 8 * 24)]
+    assert [(e["url"], e["_start"]) for e in upcoming(events, NOW)] == [("a", NOW + datetime.timedelta(hours=50))]
 
 
 def test_price_reads_the_first_number():
@@ -48,7 +48,8 @@ def test_pacing():
     assert gap(9, NOW) == datetime.timedelta(hours=1)
     last = NOW.replace(hour=13)
     assert due(last, 1, last).astimezone(NOW.tzinfo).strftime("%H:%M") == "16:00"
-    assert due(last, 1, last, NOW.replace(hour=18)).astimezone(NOW.tzinfo).strftime("%H:%M") == "14:00"
+    # The soonest event stops being postable tomorrow at 14:00, so it is due a day earlier
+    assert due(last, 1, last, last + datetime.timedelta(days=1, hours=1)).astimezone(NOW.tzinfo).strftime("%H:%M") == "14:00"
     assert in_window(NOW) and not in_window(NOW.replace(hour=9, minute=59)) and not in_window(NOW.replace(hour=19))
 
 

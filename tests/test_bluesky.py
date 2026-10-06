@@ -49,10 +49,10 @@ def test_event_record_links_upstream_without_rsvps():
 def test_first_run_posts_and_reposts(tmp_path):
     feed, curated, hood = FakeClient("events"), FakeClient("curated"), FakeClient("indiranagar")
     reposters = [BlueskyReposter(curated, Calendar(["CURATED"]), NOW), BlueskyReposter(hood, Calendar(["INDIRANAGAR"]), NOW)]
-    events = [make_event("junk", 2, ["LOW-QUALITY"]), make_event("b", 5, ["INDIRANAGAR", "CURATED"]), make_event("c", 6, ["CURATED"])]
+    events = [make_event("junk", 50, ["LOW-QUALITY"]), make_event("b", 53, ["INDIRANAGAR", "CURATED"]), make_event("c", 54, ["CURATED"]), make_event("soon", 5, ["CURATED"])]
     assert run(feed, events, NOW, Ledger(tmp_path / "l.json"), reposters, [Calendar(["LOW-QUALITY"])]) == 1
     assert [r["embed"]["external"]["uri"] for r in posts(feed)] == ["b"]
-    assert [r["name"] for c, _, r in feed.puts if c == EVENT] == ["B", "C"]
+    assert [r["name"] for c, _, r in feed.puts if c == EVENT] == ["SOON", "B", "C"]
     assert len(curated.created) == len(hood.created) == 1
     # The next post waits for its slot, so a run five minutes later posts nothing
     assert run(feed, events, NOW + datetime.timedelta(minutes=5), Ledger(tmp_path / "l.json"), reposters) == 0
@@ -79,10 +79,10 @@ def test_crash_mid_post_is_settled_without_a_duplicate(tmp_path):
     feed = FakeClient("events")
     feed.fail_next = True
     with pytest.raises(RuntimeError):
-        run(feed, [make_event("a", 5)], NOW, Ledger(tmp_path / "l.json"))
+        run(feed, [make_event("a", 53)], NOW, Ledger(tmp_path / "l.json"))
     assert Ledger(tmp_path / "l.json").pending() == ["a"]
     # Nothing reached the platform, so the next run retries it once
-    run(feed, [make_event("a", 5)], NOW + datetime.timedelta(minutes=5), Ledger(tmp_path / "l.json"))
+    run(feed, [make_event("a", 53)], NOW + datetime.timedelta(minutes=5), Ledger(tmp_path / "l.json"))
     assert len(posts(feed)) == 1 and Ledger(tmp_path / "l.json").get("a")["status"] == "posted"
 
 
@@ -97,13 +97,21 @@ def test_crash_after_the_platform_accepted_adopts_the_post(tmp_path):
 
 def test_nothing_is_posted_outside_posting_hours(tmp_path):
     feed = FakeClient("events")
-    run(feed, [make_event("a", 5)], NOW.replace(hour=8), Ledger(tmp_path / "l.json"))
+    run(feed, [make_event("a", 53)], NOW.replace(hour=8), Ledger(tmp_path / "l.json"))
+    assert posts(feed) == []
+    run(feed, [make_event("a", 53)], NOW, Ledger(tmp_path / "l.json"))
+    assert len(posts(feed)) == 1
+
+
+def test_events_less_than_two_days_away_are_never_posted_fresh(tmp_path):
+    feed = FakeClient("events")
+    run(feed, [make_event("a", 47), make_event("b", 7 * 24 + 1)], NOW, Ledger(tmp_path / "l.json"))
     assert posts(feed) == []
 
 
 def test_seven_events_found_at_ten_are_spread_through_the_day(tmp_path):
     feed, path = FakeClient("events"), tmp_path / "l.json"
-    events = [make_event(str(i), 30 + i) for i in range(7)]
+    events = [make_event(str(i), 96 + i) for i in range(7)]
     for minute in range(0, 9 * 60, 5):
         run(feed, events, NOW + datetime.timedelta(minutes=minute), Ledger(path))
     times = [datetime.datetime.fromisoformat(r["createdAt"]).astimezone(IST) for r in posts(feed)]
@@ -155,3 +163,16 @@ def test_published_skips_replies_and_keeps_creation_time():
     ]
     found = published(FakeClient("events", {POST: records}), NOW)
     assert list(found) == ["a"] and found["a"][1].hour == 4
+
+
+def test_next_session_of_a_posted_weekly_url_is_not_a_correction(tmp_path):
+    ledger = fresh_ledger(tmp_path, weekly=(REF, make_event("weekly", -7 * 24 + 5)))
+    feed = FakeClient("events")
+    run(feed, [make_event("weekly", 5), make_event("weekly", 7 * 24 + 5)], NOW, ledger)
+    assert feed.created == []
+
+
+def test_every_session_of_a_repeated_url_gets_a_calendar_record(tmp_path):
+    feed = FakeClient("events")
+    run(feed, [make_event("series", 5), make_event("series", 29), make_event("series", 53)], NOW, Ledger(tmp_path / "l.json"))
+    assert len({rkey for c, rkey, _ in feed.puts if c == EVENT}) == 3
