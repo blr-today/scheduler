@@ -18,8 +18,8 @@ PRELUDE = (
     "{{ $d := default (dict) .Subscriber.Attribs.digest }}{{ $a := default (dict) $d.always }}"
     "{{ $n := default (dict) $d.never }}{{ $count := 0 }}"
 )
-# Joins a template list like the website does: "A", "A and B", "A, B and C"
-JOIN = '{{{{ if gt (len {0}) 1 }}}}{{{{ join ", " (initial {0}) }}}} and {{{{ last {0} }}}}{{{{ else }}}}{{{{ first {0} }}}}{{{{ end }}}}'
+# Joins a template list like the website does: "A", "A and B", "A, B and C" (or "or")
+JOIN = '{{{{ if gt (len {0}) 1 }}}}{{{{ join ", " (initial {0}) }}}} {1} {{{{ last {0} }}}}{{{{ else }}}}{{{{ first {0} }}}}{{{{ end }}}}'
 
 
 def options(get):
@@ -72,9 +72,9 @@ def explain(opts, total):
     )
     return (
         f"{{{{ $t := {titles} }}}}{pick('$a', '$al')}{pick('$n', '$nl')}"
-        f'<p style="color:#555;font-size:14px">Showing {{{{ $count }}}} of {total} events this week: the curated ones'
-        f"{{{{ if $al }}}}, plus every {JOIN.format('$al')} event{{{{ end }}}}."
-        f"{{{{ if $nl }}}} Leaving out {JOIN.format('$nl')} events.{{{{ end }}}}</p>"
+        f'<p style="color:#555;font-size:14px">Here are {{{{ $count }}}} of this week\'s {total} events: our picks'
+        f"{{{{ if $al }}}}, plus all the {JOIN.format('$al', 'and')} events{{{{ end }}}}."
+        f"{{{{ if $nl }}}} We left out anything {JOIN.format('$nl', 'or')}.{{{{ end }}}}</p>"
     )
 
 
