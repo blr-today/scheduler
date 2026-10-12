@@ -136,6 +136,9 @@ def run(config, events, now, get, dry_run=False, send=False):
     if template:
         fields["template_id"] = int(template)
     camp = lm.call("PUT", f"/api/campaigns/{camp['id']}", json=fields) if camp else lm.call("POST", "/api/campaigns", json=fields)
+    if send and not config.get("send", True):
+        print("digest: sending is off in the config, so it stays a draft")
+        send = False
     if send:
         lm.call("PUT", f"/api/campaigns/{camp['id']}/status", json={"status": "running"})
     print(f"digest: {name} {'sending' if send else 'saved as a draft'}")

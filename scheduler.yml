@@ -56,3 +56,5 @@ digest:
   listmonk: https://lists.blr.today
   # Same events the social feeds leave out
   exclude: [unwanted]
+  # SES has no production access yet, so only draft campaigns
+  send: false
