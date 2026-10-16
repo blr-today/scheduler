@@ -258,10 +258,24 @@ class FakeHTTP:
         return self.response(200, {"accessJwt": token, "refreshJwt": "refresh", "did": "did:plc:x"})
 
 
+def test_new_accounts_sign_in_two_per_run(tmp_path, monkeypatch):
+    from scheduler.bluesky import client as module
+    http = FakeHTTP()
+    monkeypatch.setattr(module.requests, "Session", lambda: http)
+    monkeypatch.setattr(module.Client, "logins_left", 2)
+    clients = [module.Client("https://pds", f"a{i}.blr.today", "pw", tmp_path) for i in range(3)]
+    clients[0].create(POST, {})
+    clients[1].create(POST, {})
+    with pytest.raises(RuntimeError, match="deferred"):
+        clients[2].create(POST, {})
+    assert http.logins == 2
+
+
 def test_sessions_are_cached_and_refreshed_instead_of_logging_in(tmp_path, monkeypatch):
     from scheduler.bluesky import client as module
     http = FakeHTTP()
     monkeypatch.setattr(module.requests, "Session", lambda: http)
+    monkeypatch.setattr(module.Client, "logins_left", 2)
     first = module.Client("https://pds", "events.blr.today", "pw", tmp_path)
     assert http.logins == 0
     first.create(POST, {})

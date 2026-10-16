@@ -16,6 +16,9 @@ class Client:
     it when the access token expires, since PDSes rate-limit password logins hard.
     """
 
+    # Password logins left in this run, shared by every account
+    logins_left = 2
+
     def __init__(self, pds, handle, password=None, sessions=None):
         self.pds, self.handle, self.password = pds.rstrip("/"), handle, password
         self.cache = Path(sessions, f"{handle}.json") if sessions else None
@@ -28,6 +31,13 @@ class Client:
         if self.cache and self.cache.exists():
             self.use(json.loads(self.cache.read_text()))
             return
+        self.password_login()
+
+    def password_login(self):
+        """New accounts sign in a few per run, since eurosky allows about one login a minute"""
+        if Client.logins_left <= 0:
+            raise RuntimeError(f"{self.handle}: sign-in deferred to a later run")
+        Client.logins_left -= 1
         self.use(self.call("com.atproto.server.createSession", {"identifier": self.handle, "password": self.password}), save=True)
 
     def refresh(self):
@@ -36,7 +46,7 @@ class Client:
         if res.ok:
             self.use(res.json(), save=True)
         else:
-            self.use(self.call("com.atproto.server.createSession", {"identifier": self.handle, "password": self.password}), save=True)
+            self.password_login()
 
     def use(self, session, save=False):
         self.session = session
