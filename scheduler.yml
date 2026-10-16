@@ -12,14 +12,40 @@ bluesky:
   last_call:
     handle: lastcall.blr.today
   reposters:
-    - handle: indiranagar.blr.today
-      calendar: indiranagar
-    - handle: curated.blr.today
-      calendar: curated
-    - handle: cbd.blr.today
-      calendar: cbd
-    - handle: free.blr.today
-      tags: [FREE]
+    - {handle: curated.blr.today, calendar: curated}
+    - {handle: indiranagar.blr.today, calendar: indiranagar}
+    - {handle: cbd.blr.today, calendar: cbd}
+    - {handle: whitefield.blr.today, calendar: whitefield}
+    - {handle: koramangala.blr.today, calendar: koramangala}
+    - {handle: north.blr.today, calendar: north}
+    - {handle: hsr.blr.today, calendar: hsr}
+    - {handle: jpnagar.blr.today, calendar: jpnagar}
+    - {handle: jayanagar.blr.today, calendar: jayanagar}
+    - {handle: fitness.blr.today, calendar: fitness}
+    - {handle: books.blr.today, calendar: bookstores}
+    - {handle: underline.blr.today, calendar: underline}
+    - {handle: bic.blr.today, calendar: bic}
+    - {handle: sabha.blr.today, calendar: sabha}
+    - {handle: scigallery.blr.today, calendar: scigallery}
+    - {handle: rangashankara.blr.today, calendar: rangashankara}
+    - {handle: afbangalore.blr.today, calendar: afbangalore}
+    - {handle: fillum.blr.today, calendar: fillum}
+    - {handle: free.blr.today, tags: [FREE]}
+    - {handle: budget.blr.today, tags: [BUDGET]}
+    - {handle: workshops.blr.today, types: [EducationEvent]}
+    - {handle: sports.blr.today, types: [SportsEvent]}
+    - {handle: food.blr.today, calendar: food}
+    - {handle: music.blr.today, calendar: music}
+    - {handle: film.blr.today, calendar: films}
+    - {handle: boardgames.blr.today, calendar: boardgames}
+    - {handle: comedy.blr.today, calendar: comedy}
+    - {handle: couples.blr.today, calendar: couples}
+    - {handle: crafts.blr.today, calendar: crafts}
+    - {handle: dance.blr.today, calendar: dance}
+    - {handle: kids.blr.today, calendar: kids}
+    - {handle: outdoors.blr.today, calendar: outdoors}
+    - {handle: quizzing.blr.today, calendar: quizzing}
+    - {handle: stage.blr.today, calendar: stage}
 fedi:
   server: https://fedi.blr.today
   # Post exactly what the Bluesky firehose posted, read from its ledger
