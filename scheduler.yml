@@ -45,13 +45,25 @@ fedi:
     - {account: bic, calendar: bic}
     - {account: sabha, calendar: sabha}
     - {account: scigallery, calendar: scigallery}
+    - {account: rangashankara, calendar: rangashankara}
+    - {account: afbangalore, calendar: afbangalore}
+    - {account: fillum, calendar: fillum}
     - {account: free, tags: [FREE]}
     - {account: budget, tags: [BUDGET]}
     - {account: workshops, types: [EducationEvent]}
     - {account: sports, types: [SportsEvent]}
-    - {account: food, types: [FoodEvent]}
-    - {account: music, types: [MusicEvent]}
-    - {account: film, types: [ScreeningEvent]}
+    - {account: food, calendar: food}
+    - {account: music, calendar: music}
+    - {account: film, calendar: films}
+    - {account: boardgames, calendar: boardgames}
+    - {account: comedy, calendar: comedy}
+    - {account: couples, calendar: couples}
+    - {account: crafts, calendar: crafts}
+    - {account: dance, calendar: dance}
+    - {account: kids, calendar: kids}
+    - {account: outdoors, calendar: outdoors}
+    - {account: quizzing, calendar: quizzing}
+    - {account: stage, calendar: stage}
 digest:
   listmonk: https://lists.blr.today
   # Same events the social feeds leave out
