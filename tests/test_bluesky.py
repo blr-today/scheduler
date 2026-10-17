@@ -4,7 +4,7 @@ import pytest
 
 from conftest import NOW, FakeClient, make_event
 from scheduler.bluesky.publisher import BlueskyReposter, Feed, LastCaller, published
-from scheduler.bluesky.records import EVENT, POST, event_record, hashtag_facets, text
+from scheduler.bluesky.records import EVENT, POST, REPOST, event_record, hashtag_facets, text
 from scheduler.shared.calendars import Calendar
 from scheduler.shared.corrections import facts
 from scheduler.shared.events import IST
@@ -296,3 +296,16 @@ def test_neighbourhood_and_type_go_in_the_tags_field_only(tmp_path):
     run(feed, [make_event("e", 53, ["KORAMANGALA"], **{"@type": "MusicEvent"})], NOW, Ledger(tmp_path / "l.json"))
     post = posts(feed)[0]
     assert post["tags"] == ["Bengaluru", "Bangalore", "Koramangala", "Music"] and "#" not in post["text"]
+
+
+def test_repost_is_withdrawn_once_the_event_leaves_the_calendar(tmp_path):
+    feed, hood = FakeClient("events"), FakeClient("whitefield")
+    path, cal = tmp_path / "l.json", Calendar(["WHITEFIELD"])
+    run(feed, [make_event("meetup", 53, ["HSR", "WHITEFIELD"])], NOW, Ledger(path), [BlueskyReposter(hood, cal, NOW)])
+    assert [c for c, _ in hood.created] == [REPOST]
+    # The venue moves to HSR, then the tag flips back: the repost goes, and stays gone
+    for tags in (["HSR"], ["HSR"], ["HSR", "WHITEFIELD"]):
+        run(feed, [make_event("meetup", 53, tags)], NOW, Ledger(path), [BlueskyReposter(hood, cal, NOW)])
+    assert hood.deleted == [(REPOST, "1")] and len(hood.created) == 1
+    entry = Ledger(path).get("meetup")
+    assert entry["reposted"] == [] and entry["unshared"] == [{"account": "whitefield", "at": NOW.isoformat(), "name": "MEETUP", "keywords": ["HSR"]}]

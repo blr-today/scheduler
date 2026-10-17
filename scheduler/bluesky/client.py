@@ -105,6 +105,9 @@ class Client:
     def put(self, collection, rkey, record):
         return self.write("com.atproto.repo.putRecord", {"repo": self.did, "collection": collection, "rkey": rkey, "record": record})
 
+    def delete(self, collection, rkey):
+        return self.write("com.atproto.repo.deleteRecord", {"repo": self.did, "collection": collection, "rkey": rkey})
+
     def upload(self, data, mime):
         return self.write("com.atproto.repo.uploadBlob", data=data, headers={"Content-Type": mime})["blob"]
 
@@ -132,6 +135,9 @@ class DryClient(Client):
 
     def put(self, collection, rkey, record):
         print(f"[dry-run] {self.handle} {collection}/{rkey}: {record['name']}")
+
+    def delete(self, collection, rkey):
+        print(f"[dry-run] {self.handle} deletes {collection}/{rkey}")
 
     def upload(self, data, mime):
         return {"$type": "blob", "mimeType": mime, "size": len(data), "ref": {"$link": "dry"}}

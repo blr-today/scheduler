@@ -46,6 +46,7 @@ def stats(ledger, now):
         "last_7_days": sum(1 for t in times if now - t <= datetime.timedelta(days=7)),
         "by_day": dict(sorted(days.items())),
         "reposts": dict(Counter(name for e in entries for name in e.get("reposted", [])).most_common()),
+        "unshared": dict(Counter(u["account"] for e in entries for u in e.get("unshared", [])).most_common()),
         "last_calls": sum(1 for e in entries if e.get("last_call")),
         "corrections": sum(e.get("corrections", 0) for e in entries),
         "skipped": dict(Counter(s["reason"] for s in ledger.skipped.values()).most_common()),
@@ -63,7 +64,12 @@ def build(platform, outcome, ledger, accounts, now, post_link, dry_run=False):
             recent.append({
                 "at": posted.isoformat(), "url": url, "name": outcome.names.get(url), "starts": facts.get("start"),
                 "post": post_link(entry["ref"]), "reposted": entry.get("reposted", []), "last_call": bool(entry.get("last_call")),
+                "unshared": [u["account"] for u in entry.get("unshared", [])],
             })
+    unshared = [
+        {"url": url, "post": post_link(entry["ref"]), **u}
+        for url, entry in ledger.posted().items() for u in entry.get("unshared", []) if now - parse_time(u["at"]) <= DAILY
+    ]
     return {
         "platform": platform,
         "generated": now.isoformat(),
@@ -75,6 +81,7 @@ def build(platform, outcome, ledger, accounts, now, post_link, dry_run=False):
         "would_miss": [event_row(e, accounts) for e in missed],
         "recent": sorted(recent, key=lambda r: r["at"], reverse=True),
         "skipped": sorted(({"url": u, **s} for u, s in ledger.skipped.items()), key=lambda r: r["noticed"], reverse=True),
+        "unshared": sorted(unshared, key=lambda r: r["at"], reverse=True),
     }
 
 

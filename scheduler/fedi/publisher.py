@@ -75,6 +75,12 @@ class FediReposter(Reposter):
         self.client.reblog(ref["id"])
         return True
 
+    def unshare(self, ref):
+        if not self.client.reblogged(ref["id"]):
+            return False
+        self.client.unreblog(ref["id"])
+        return True
+
 
 class LastCaller:
     """Separate account for Last Call replies, so people can mute it or #lastcall"""

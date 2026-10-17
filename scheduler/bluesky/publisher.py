@@ -65,13 +65,20 @@ class BlueskyReposter(Reposter):
     def __init__(self, client, calendar, now):
         super().__init__(client.handle, calendar, now)
         self.client = client
-        self.done = {r["value"]["subject"]["uri"] for r in client.records(REPOST, now - HISTORY)}
+        # Reposted post URI -> the repost record's URI, which deleting needs
+        self.done = {r["value"]["subject"]["uri"]: r["uri"] for r in client.records(REPOST, now - HISTORY)}
 
     def share(self, ref):
         if ref["uri"] in self.done:
             return False
-        self.client.create(REPOST, {"$type": REPOST, "subject": ref, "createdAt": iso(datetime.datetime.now(datetime.UTC))})
-        self.done.add(ref["uri"])
+        res = self.client.create(REPOST, {"$type": REPOST, "subject": ref, "createdAt": iso(datetime.datetime.now(datetime.UTC))})
+        self.done[ref["uri"]] = res["uri"]
+        return True
+
+    def unshare(self, ref):
+        if ref["uri"] not in self.done:
+            return False
+        self.client.delete(REPOST, self.done.pop(ref["uri"]).rsplit("/", 1)[-1])
         return True
 
 

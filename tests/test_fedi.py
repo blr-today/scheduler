@@ -42,6 +42,9 @@ class FakeMastodon:
     def reblog(self, status_id):
         self.boosted.append(status_id)
 
+    def unreblog(self, status_id):
+        self.boosted.remove(status_id)
+
 
 def test_text_skips_the_title_mastodon_shows_as_a_heading():
     e = make_event("https://a.example/e", 9, ["INDIRANAGAR"], sameAs=["https://b.example/e"], description="<p>Fun</p>", **{"@type": "MusicEvent"})
@@ -104,3 +107,12 @@ def test_posts_unknown_to_the_ledger_are_matched_through_their_event_object():
     feed.post("Music event", extra={"event_url": "https://x/a"})
     assert {u: r["url"] for u, (r, _) in published(feed, NOW).items()} == {"https://x/a": "https://fedi/events/1"}
     assert {u for u in published(feed, NOW, known={"https://fedi/events/1": "https://x/known"})} == {"https://x/known"}
+
+
+def test_boost_is_withdrawn_when_the_event_leaves_the_calendar(tmp_path):
+    feed, film, path = FakeMastodon("events"), FakeMastodon("film"), tmp_path / "fedi.json"
+    reposters = [FediReposter(film, Calendar(["MOVIE-SCREENING"], ["SPORTS-SCREENING"]), NOW)]
+    publish(Feed(feed), reposters, [make_event("https://x/match", 53, ["MOVIE-SCREENING"])], [], NOW, Ledger(path), "fedi")
+    assert film.boosted == ["events1"]
+    publish(Feed(feed), reposters, [make_event("https://x/match", 53, ["MOVIE-SCREENING", "SPORTS-SCREENING"])], [], NOW, Ledger(path), "fedi")
+    assert film.boosted == [] and [u["account"] for u in Ledger(path).get("https://x/match")["unshared"]] == ["film"]

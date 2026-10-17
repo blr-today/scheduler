@@ -16,12 +16,13 @@ class FakeClient:
     """Stands in for a Bluesky account: remembers what it created"""
 
     def __init__(self, handle, records=None):
-        self.handle, self.did, self.created, self.puts = handle, f"did:plc:{handle}", [], []
+        self.handle, self.did, self.created, self.puts, self.deleted = handle, f"did:plc:{handle}", [], [], []
         self.existing = records or {}
         self.fail_next = False
 
     def records(self, collection, since=None):
-        made = [{"uri": f"at://{self.did}/{c}/{i}", "cid": "c", "value": r} for i, (c, r) in enumerate(self.created, 1) if c == collection]
+        made = [{"uri": f"at://{self.did}/{c}/{i}", "cid": "c", "value": r} for i, (c, r) in enumerate(self.created, 1)
+                if c == collection and (c, str(i)) not in self.deleted]
         return iter(self.existing.get(collection, []) + made)
 
     def put(self, collection, rkey, record):
@@ -33,6 +34,9 @@ class FakeClient:
             raise RuntimeError("boom")
         self.created.append((collection, record))
         return {"uri": f"at://{self.did}/{collection}/{len(self.created)}", "cid": "c"}
+
+    def delete(self, collection, rkey):
+        self.deleted.append((collection, rkey))
 
     def upload(self, data, mime):
         raise AssertionError("no images in tests")

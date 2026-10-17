@@ -71,6 +71,9 @@ class Client:
     def reblog(self, status_id):
         self.call("POST", f"/api/v1/statuses/{status_id}/reblog")
 
+    def unreblog(self, status_id):
+        self.call("POST", f"/api/v1/statuses/{status_id}/unreblog")
+
 
 class DryClient(Client):
     """Reads the real account (with its token when given) but prints every write"""
@@ -98,3 +101,6 @@ class DryClient(Client):
 
     def reblog(self, status_id):
         print(f"[dry-run] {self.account} reblogs {status_id}")
+
+    def unreblog(self, status_id):
+        print(f"[dry-run] {self.account} unreblogs {status_id}")

@@ -4,7 +4,8 @@ Posts upcoming [blr.today](https://blr.today) events to Bluesky, evenly through 
 
 - `events.blr.today` posts every event outside the website's *unwanted* calendar.
 - Tag accounts (`indiranagar.blr.today`, `curated.blr.today`) repost the posts of events on
-  their website calendar. Calendars are read live from `blr-today/website`.
+  their website calendar. Calendars are read live from `blr-today/website`. A repost is
+  withdrawn, and logged in the ledger, if its event leaves the calendar before it starts.
 - `lastcall.blr.today` replies once when ingest tags a posted event `LASTCALL`.
 - Changes before an event starts (time, venue, cheapest price, cancelled, sold out) get one
   "✏️ Update" reply. Bluesky posts can't be edited.

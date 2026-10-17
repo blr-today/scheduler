@@ -14,7 +14,10 @@ MAX_CORRECTIONS = 10
 
 
 class Reposter:
-    """Shares the feed's posts of events on one calendar, at most cap new ones per run"""
+    """Shares the feed's posts of events on one calendar, at most cap new ones per run
+
+    A repost is withdrawn when the event leaves the calendar before it starts, and never made again.
+    """
 
     def __init__(self, name, calendar, now, cap=REPOSTS_PER_RUN):
         self.name, self.calendar, self.now, self.left = name, calendar, now, cap
@@ -22,13 +25,30 @@ class Reposter:
     def offer(self, entry, event):
         if self.name in entry["reposted"] or self.left <= 0 or event["_start"] < self.now or event not in self.calendar:
             return
+        if any(u["account"] == self.name for u in entry.get("unshared", [])):
+            return
         if self.share(entry["ref"]):
             self.left -= 1
             print(f"Reposted on {self.name}: {event.get('name')}")
         entry["reposted"].append(self.name)
 
+    def withdraw(self, entry, event):
+        if self.name not in entry["reposted"] or self.left <= 0 or event["_start"] < self.now or event in self.calendar:
+            return
+        if self.unshare(entry["ref"]):
+            self.left -= 1
+            print(f"Unreposted on {self.name}: {event.get('name')}")
+        entry["reposted"].remove(self.name)
+        entry.setdefault("unshared", []).append({
+            "account": self.name, "at": self.now.isoformat(), "name": event.get("name"), "keywords": sorted(event.get("keywords") or []),
+        })
+
     def share(self, ref):
         """Repost ref unless the platform shows it was already reposted; True if it reposted"""
+        raise NotImplementedError
+
+    def unshare(self, ref):
+        """Undo the repost of ref if the platform shows one; True if it removed it"""
         raise NotImplementedError
 
 
@@ -36,8 +56,9 @@ def share(reposters, entry, event):
     for reposter in reposters:
         try:
             reposter.offer(entry, event)
+            reposter.withdraw(entry, event)
         except RuntimeError as e:
-            print(f"warning: {reposter.name} could not repost {event['url']}: {e}")
+            print(f"warning: {reposter.name} could not update its repost of {event['url']}: {e}")
 
 
 def announce_last_calls(caller, ledger, live, now):
@@ -163,7 +184,7 @@ def publish(feed, reposters, events, excluded, now, ledger, name, order=None, ca
         share(reposters, ledger.get(event["url"]), event)
         live.append(event)
         ledger.save()
-    # Catch up on reposts missed by earlier runs or newly added accounts
+    # Catch up on reposts missed by earlier runs or newly added accounts, and withdraw stale ones
     for event in live:
         share(reposters, ledger.get(event["url"]), event)
     if caller and open_now:

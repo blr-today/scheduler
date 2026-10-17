@@ -214,9 +214,10 @@ def test_stats_total_the_ledger(tmp_path):
     ledger.record("b", {}, None, NOW - datetime.timedelta(days=40))
     ledger.get("a").update(reposted=["curated", "free"], last_call=True, corrections=2)
     ledger.get("b")["reposted"] = ["curated"]
+    ledger.get("b")["unshared"] = [{"account": "free", "at": NOW.isoformat()}]
     ledger.skip("c", make_event("https://x/c", 50), "sold out", NOW)
     assert stats(ledger, NOW) == {
         "posted": 2, "since": (NOW - datetime.timedelta(days=40)).isoformat(), "last_7_days": 1,
-        "by_day": {"2026-10-05": 1}, "reposts": {"curated": 2, "free": 1}, "last_calls": 1, "corrections": 2,
+        "by_day": {"2026-10-05": 1}, "reposts": {"curated": 2, "free": 1}, "unshared": {"free": 1}, "last_calls": 1, "corrections": 2,
         "skipped": {"sold out": 1},
     }
